@@ -1,8 +1,9 @@
-#include <cstdint>
+#include <cstdint> // uint8_t, uint16_t, uint32_t
 #include <iostream>
 #include <fstream>
 #include <iomanip>
 #include <bitset>
+#include <algorithm> // std::swap
 
 #define FOR_CPUDIAG
 #define DEBUG
@@ -17,28 +18,14 @@ uint8_t parity(uint8_t v)
       return 0;
 }
 
-void swap(uint8_t &a, uint8_t &b)
-{
-   uint8_t temp;
-   if (a == b)
-      return;
-   temp = a;
-   a = b;
-   b = temp;
-   return;
-}
-
 struct ConditionCodes {
    // 7 6 5 4 3 2 1 0
    // S Z 0 A 0 P 1 C
    uint8_t c : 1; // Carry             An addition operation that results in a carry out of the high-order bit will set the Carry bit; an addition operation that could have resulted in a carry out but did not will reset the Carry bit.
-   uint8_t : 1; // 1
-             uint8_t p : 1; // Parity            The Parity bit is set to 1 for even parity, and is reset to 0 for odd parity.
-             uint8_t : 1; // 0
-                       uint8_t a : 1; // Auxiliary Carry   The Auxiliary Carry bit indicates carry out of bit 3.
-                       uint8_t : 1; // 0                 
-                                 uint8_t z : 1; // Zero              This conditioin bit is set if the result generated . . . is zero. The Zero bit is reset if the result is not zero.
-                                 uint8_t s : 1; // Sign              At the conclusion of certain instructions, . . . the Sign bit will be set to the condition of the most significant bit of the answer (bit 7).
+   uint8_t p : 1; // Parity            The Parity bit is set to 1 for even parity, and is reset to 0 for odd parity.
+   uint8_t a : 1; // Auxiliary Carry   The Auxiliary Carry bit indicates carry out of bit 3.
+   uint8_t z : 1; // Zero              This conditioin bit is set if the result generated . . . is zero. The Zero bit is reset if the result is not zero.
+   uint8_t s : 1; // Sign              At the conclusion of certain instructions, . . . the Sign bit will be set to the condition of the most significant bit of the answer (bit 7).
 };
 
 struct State8080 {
@@ -117,7 +104,6 @@ void ANA(State8080* state, uint8_t value)
    state->f.a = 0; // Half Carry flag
 
    state->a = x;
-   // Finished
 }
 void CALL(State8080* state, uint16_t value)
 {
@@ -144,7 +130,6 @@ void CMP(State8080* state, uint8_t value)
    state->f.p = parity(x & 0xff); // Parity flag
    state->f.c = ((x & 0x100) == 0x100); // Carry flag
    state->f.a = ((((state->a & 0xf) + ((~value + 1) & 0xf)) & 0x10) == 0x10); // Auxiliary Carry flag
-   // Finished
 }
 void DCR(State8080* state, uint8_t &value)
 {
@@ -158,8 +143,6 @@ void DCR(State8080* state, uint8_t &value)
    state->f.a = ((value & 0x0f) < 1); // Half Carry flag
 
    value = x;
-
-   // Finished
 }
 void INR(State8080* state, uint8_t &value)
 {
@@ -173,13 +156,10 @@ void INR(State8080* state, uint8_t &value)
    state->f.a = ((((value & 0x0f) + 1) & 0x10) == 0x10); // Auxiliary Carry flag
 
    value = x;
-
-   // Finished
 }
 void MOV(State8080* state, uint8_t &source, uint8_t &destination)
 {
    destination = source;
-   // Finished
 }
 void ORA(State8080* state, uint8_t value)
 {
@@ -211,14 +191,12 @@ void SUB(State8080* state, uint8_t value)
    state->f.a = ((((state->a & 0xf) + ((~value + 1) & 0xf)) & 0x10) == 0x10); // Auxiliary Carry flag
 
    state->a = x & 0xff;
-   // Finished
 }
 void SBB(State8080* state, uint8_t value)
 {
    /// The Carry bit is internally added to the contents of the specified byte.
    /// This value is then subtracted from the accumulator . . ..
    SUB(state, value + state->f.c);
-   // Finished
 }
 void XRA(State8080* state, uint8_t value)
 {
@@ -231,7 +209,6 @@ void XRA(State8080* state, uint8_t value)
    state->f.a = 0; // Half Carry flag
 
    state->a = x;
-   // Finished
 }
 
 int Disassemble8080Op(unsigned char *codebuffer, int pc)
@@ -647,7 +624,6 @@ void Emulate8080Op(State8080* state)
       state->f.c = !state->f.c;
       state->pc = state->pc + 1;
       break;
-      // Finished
    }
    case 0x37: // 0x37   STC         1     CY             CY = 1
    {
@@ -655,7 +631,6 @@ void Emulate8080Op(State8080* state)
       state->f.c = 1;
       state->pc = state->pc + 1;
       break;
-      // Finished
    }
 
    // SINGLE REGISTER INSTRUCTIONS: INR, DCR, CMA, DAA
@@ -779,7 +754,6 @@ void Emulate8080Op(State8080* state)
       state->a = ~state->a;
       state->pc = state->pc + 1;
       break;
-      // Finished
    }
    case 0x27: // 0x27   DAA         1     Z S P CY AC    special
    {
@@ -831,7 +805,6 @@ void Emulate8080Op(State8080* state)
 
       state->pc = state->pc + 1;
       break;
-      // Finished?
    }
 
    // NOP INSTRUCTION
@@ -1834,7 +1807,14 @@ void Emulate8080Op(State8080* state)
    case 0xF5: // 0xf5   PUSH PSW    1                    (sp-2)<-flags; (sp-1)<-A; sp <- sp - 2
    {
       // 11 cycles
-      state->memory[state->sp - 2] = *((uint8_t*)&state->f);
+      //ConditionCodes*
+      //state->memory[state->sp - 2] = *((uint8_t*)&state->f);
+      state->memory[state->sp - 2]
+         = (state->f.s << 7)
+         | (state->f.z << 6)
+         | (state->f.a << 4)
+         | (state->f.p << 2)
+         | (state->f.c << 0);
       state->memory[state->sp - 1] = state->a;
       state->sp = state->sp - 2;
       state->pc = state->pc + 1;
@@ -1871,7 +1851,14 @@ void Emulate8080Op(State8080* state)
    case 0xF1: // 0xf1   POP PSW     1     Z S P CY AC    flags <- (sp); A <- (sp+1); sp <- sp+2
    {
       // 10 cycles
-      state->f = *((ConditionCodes*)&state->memory[state->sp]); // Restore flags from memory
+      //state->f = *((ConditionCodes*)&state->memory[state->sp + 0]); // Restore flags from memory
+      uint8_t flags = state->memory[state->sp + 0];
+      state->f.s = ((flags & (1 << 7)) == (1 << 7));
+      state->f.z = ((flags & (1 << 6)) == (1 << 6));
+      state->f.a = ((flags & (1 << 4)) == (1 << 4));
+      state->f.p = ((flags & (1 << 2)) == (1 << 2));
+      state->f.c = ((flags & (1 << 0)) == (1 << 0));
+
       state->a = state->memory[state->sp + 1];
       state->sp = state->sp + 2;
       state->pc = state->pc + 1;
@@ -2001,16 +1988,16 @@ void Emulate8080Op(State8080* state)
    case 0xEB: // 0xeb   XCHG        1                    H <-> D; L <-> E
    {
       // 5 cycles
-      swap(state->h, state->d);
-      swap(state->l, state->e);
+      std::swap(state->h, state->d);
+      std::swap(state->l, state->e);
       state->pc = state->pc + 1;
       break;
    }
    case 0xE3: // 0xe3   XTHL        1                    L <-> (SP); H <-> (SP+1)
    {
       // 18 cycles (Longest operation!)
-      swap(state->l, state->memory[state->sp + 0]);
-      swap(state->h, state->memory[state->sp + 1]);
+      std::swap(state->l, state->memory[state->sp + 0]);
+      std::swap(state->h, state->memory[state->sp + 1]);
       state->pc = state->pc + 1;
       break;
    }
