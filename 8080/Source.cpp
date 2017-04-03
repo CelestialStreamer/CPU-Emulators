@@ -819,371 +819,371 @@ void Emulate8080Op(State8080* state)
    case 0x40: // 0x40   MOV BB      1                    B <- B
    {
       // 5 cycles
-      MOV(state, state->b, state->b);
+      state->b = state->b;
       state->pc = state->pc + 1;
       break;
    }
    case 0x41: // 0x41   MOV BC      1                    B <- C
    {
       // 5 cycles
-      MOV(state, state->c, state->b);
+      state->b = state->c;
       state->pc = state->pc + 1;
       break;
    }
    case 0x42: // 0x42   MOV BD      1                    B <- D
    {
       // 5 cycles
-      MOV(state, state->d, state->b);
+      state->b = state->d;
       state->pc = state->pc + 1;
       break;
    }
    case 0x43: // 0x43   MOV BE      1                    B <- E
    {
       // 5 cycles
-      MOV(state, state->e, state->b);
+      state->b = state->e;
       state->pc = state->pc + 1;
       break;
    }
    case 0x44: // 0x44   MOV BH      1                    B <- H
    {
       // 5 cycles
-      MOV(state, state->h, state->b);
+      state->b = state->h;
       state->pc = state->pc + 1;
       break;
    }
    case 0x45: // 0x45   MOV BL      1                    B <- L
    {
       // 5 cycles
-      MOV(state, state->l, state->b);
+      state->b = state->l;
       state->pc = state->pc + 1;
       break;
    }
    case 0x46: // 0x46   MOV BM      1                    B <- (HL)
    {
       // 7 cycles
-      MOV(state, state->memory[(state->h << 8) | (state->l)], state->b);
+      state->b = state->memory[(state->h << 8) | (state->l)];
       state->pc = state->pc + 1;
       break;
    }
    case 0x47: // 0x47   MOV BA      1                    B <- A
    {
       // 5 cycles
-      MOV(state, state->a, state->b);
+      state->b = state->a;
       state->pc = state->pc + 1;
       break;
    }
    case 0x48: // 0x48   MOV CB      1                    C <- B
    {
       // 5 cycles
-      MOV(state, state->b, state->c);
+      state->c = state->b;
       state->pc = state->pc + 1;
       break;
    }
    case 0x49: // 0x49   MOV CC      1                    C <- C
    {
       // 5 cycles
-      MOV(state, state->c, state->c);
+      state->c = state->c;
       state->pc = state->pc + 1;
       break;
    }
    case 0x4A: // 0x4a   MOV CD      1                    C <- D
    {
       // 5 cycles
-      MOV(state, state->d, state->c);
+      state->c = state->d;
       state->pc = state->pc + 1;
       break;
    }
    case 0x4B: // 0x4b   MOV CE      1                    C <- E
    {
       // 5 cycles
-      MOV(state, state->e, state->c);
+      state->c = state->e;
       state->pc = state->pc + 1;
       break;
    }
    case 0x4C: // 0x4c   MOV CH      1                    C <- H
    {
       // 5 cycles
-      MOV(state, state->h, state->c);
+      state->c = state->h;
       state->pc = state->pc + 1;
       break;
    }
    case 0x4D: // 0x4d   MOV CL      1                    C <- L
    {
       // 5 cycles
-      MOV(state, state->l, state->c);
+      state->c = state->l;
       state->pc = state->pc + 1;
       break;
    }
    case 0x4E: // 0x4e   MOV CM      1                    C <- (HL)
    {
       // 7 cycles
-      MOV(state, state->memory[(state->h << 8) | (state->l)], state->c);
+      state->c = state->memory[(state->h << 8) | (state->l)];
       state->pc = state->pc + 1;
       break;
    }
    case 0x4F: // 0x4f   MOV CA      1                    C <- A
    {
       // 5 cycles
-      MOV(state, state->a, state->c);
+      state->c = state->a;
       state->pc = state->pc + 1;
       break;
    }
    case 0x50: // 0x50   MOV DB      1                    D <- B
    {
       // 5 cycles
-      MOV(state, state->b, state->d);
+      state->d = state->b;
       state->pc = state->pc + 1;
       break;
    }
    case 0x51: // 0x51   MOV DC      1                    D <- C
    {
       // 5 cycles
-      MOV(state, state->c, state->d);
+      state->d = state->c;
       state->pc = state->pc + 1;
       break;
    }
    case 0x52: // 0x52   MOV DD      1                    D <- D
    {
       // 5 cycles
-      MOV(state, state->d, state->d);
+      state->d = state->d;
       state->pc = state->pc + 1;
       break;
    }
    case 0x53: // 0x53   MOV DE      1                    D <- E
    {
       // 5 cycles
-      MOV(state, state->e, state->d);
+      state->d = state->e;
       state->pc = state->pc + 1;
       break;
    }
    case 0x54: // 0x54   MOV DH      1                    D <- H
    {
       // 5 cycles
-      MOV(state, state->h, state->d);
+      state->d = state->h;
       state->pc = state->pc + 1;
       break;
    }
    case 0x55: // 0x55   MOV DL      1                    D <- L
    {
       // 5 cycles
-      MOV(state, state->l, state->d);
+      state->d = state->l;
       state->pc = state->pc + 1;
       break;
    }
    case 0x56: // 0x56   MOV DM      1                    D <- (HL)
    {
       // 7 cycles
-      MOV(state, state->memory[(state->h << 8) | (state->l)], state->d);
+      state->d = state->memory[(state->h << 8) | (state->l)];
       state->pc = state->pc + 1;
       break;
    }
    case 0x57: // 0x57   MOV DA      1                    D <- A
    {
       // 5 cycles
-      MOV(state, state->a, state->d);
+      state->d = state->a;
       state->pc = state->pc + 1;
       break;
    }
    case 0x58: // 0x58   MOV EB      1                    E <- B
    {
       // 5 cycles
-      MOV(state, state->b, state->e);
+      state->e = state->b;
       state->pc = state->pc + 1;
       break;
    }
    case 0x59: // 0x59   MOV EC      1                    E <- C
    {
       // 5 cycles
-      MOV(state, state->c, state->e);
+      state->e = state->c;
       state->pc = state->pc + 1;
       break;
    }
    case 0x5A: // 0x5a   MOV ED      1                    E <- D
    {
       // 5 cycles
-      MOV(state, state->d, state->e);
+      state->e = state->d;
       state->pc = state->pc + 1;
       break;
    }
    case 0x5B: // 0x5b   MOV EE      1                    E <- E
    {
       // 5 cycles
-      MOV(state, state->e, state->e);
+      state->e = state->e;
       state->pc = state->pc + 1;
       break;
    }
    case 0x5C: // 0x5c   MOV EH      1                    E <- H
    {
       // 5 cycles
-      MOV(state, state->h, state->e);
+      state->e = state->h;
       state->pc = state->pc + 1;
       break;
    }
    case 0x5D: // 0x5d   MOV EL      1                    E <- L
    {
       // 5 cycles
-      MOV(state, state->l, state->e);
+      state->e = state->l;
       state->pc = state->pc + 1;
       break;
    }
    case 0x5E: // 0x5e   MOV EM      1                    E <- (HL)
    {
       // 7 cycles
-      MOV(state, state->memory[(state->h << 8) | (state->l)], state->e);
+      state->e = state->memory[(state->h << 8) | (state->l)];
       state->pc = state->pc + 1;
       break;
    }
    case 0x5F: // 0x5f   MOV EA      1                    E <- A
    {
       // 5 cycles
-      MOV(state, state->a, state->e);
+      state->e = state->a;
       state->pc = state->pc + 1;
       break;
    }
    case 0x60: // 0x60   MOV HB      1                    H <- B
    {
       // 5 cycles
-      MOV(state, state->b, state->h);
+      state->h = state->b;
       state->pc = state->pc + 1;
       break;
    }
    case 0x61: // 0x61   MOV HC      1                    H <- C
    {
       // 5 cycles
-      MOV(state, state->c, state->h);
+      state->h = state->c;
       state->pc = state->pc + 1;
       break;
    }
    case 0x62: // 0x62   MOV HD      1                    H <- D
    {
       // 5 cycles
-      MOV(state, state->d, state->h);
+      state->h = state->d;
       state->pc = state->pc + 1;
       break;
    }
    case 0x63: // 0x63   MOV HE      1                    H <- E
    {
       // 5 cycles
-      MOV(state, state->e, state->h);
+      state->h = state->e;
       state->pc = state->pc + 1;
       break;
    }
    case 0x64: // 0x64   MOV HH      1                    H <- H
    {
       // 5 cycles
-      MOV(state, state->h, state->h);
+      state->h = state->h;
       state->pc = state->pc + 1;
       break;
    }
    case 0x65: // 0x65   MOV HL      1                    H <- L
    {
       // 5 cycles
-      MOV(state, state->l, state->h);
+      state->h = state->l;
       state->pc = state->pc + 1;
       break;
    }
    case 0x66: // 0x66   MOV HM      1                    H <- (HL)
    {
       // 7 cycles
-      MOV(state, state->memory[(state->h << 8) | (state->l)], state->h);
+      state->h = state->memory[(state->h << 8) | (state->l)];
       state->pc = state->pc + 1;
       break;
    }
    case 0x67: // 0x67   MOV HA      1                    H <- A
    {
       // 5 cycles
-      MOV(state, state->a, state->h);
+      state->h = state->a;
       state->pc = state->pc + 1;
       break;
    }
    case 0x68: // 0x68   MOV LB      1                    L <- B
    {
       // 5 cycles
-      MOV(state, state->b, state->l);
+      state->l = state->b;
       state->pc = state->pc + 1;
       break;
    }
    case 0x69: // 0x69   MOV LC      1                    L <- C
    {
       // 5 cycles
-      MOV(state, state->c, state->l);
+      state->l = state->c;
       state->pc = state->pc + 1;
       break;
    }
    case 0x6A: // 0x6a   MOV LD      1                    L <- D
    {
       // 5 cycles
-      MOV(state, state->d, state->l);
+      state->l = state->d;
       state->pc = state->pc + 1;
       break;
    }
    case 0x6B: // 0x6b   MOV LE      1                    L <- E
    {
       // 5 cycles
-      MOV(state, state->e, state->l);
+      state->l = state->e;
       state->pc = state->pc + 1;
       break;
    }
    case 0x6C: // 0x6c   MOV LH      1                    L <- H
    {
       // 5 cycles
-      MOV(state, state->h, state->l);
+      state->l = state->h;
       state->pc = state->pc + 1;
       break;
    }
    case 0x6D: // 0x6d   MOV LL      1                    L <- L
    {
       // 5 cycles
-      MOV(state, state->l, state->l);
+      state->l = state->l;
       state->pc = state->pc + 1;
       break;
    }
    case 0x6E: // 0x6e   MOV LM      1                    L <- (HL)
    {
       // 7 cycles
-      MOV(state, state->memory[(state->h << 8) | (state->l)], state->l);
+      state->l = state->memory[(state->h << 8) | (state->l)];
       state->pc = state->pc + 1;
       break;
    }
    case 0x6F: // 0x6f   MOV LA      1                    L <- A
    {
       // 5 cycles
-      MOV(state, state->a, state->l);
+      state->l = state->a;
       state->pc = state->pc + 1;
       break;
    }
    case 0x70: // 0x70   MOV MB      1                    (HL) <- B
    {
       // 7 cycles
-      MOV(state, state->b, state->memory[(state->h << 8) | (state->l)]);
+      state->memory[(state->h << 8 = state->b | (state->l)]);
       state->pc = state->pc + 1;
       break;
    }
    case 0x71: // 0x71   MOV MC      1                    (HL) <- C
    {
       // 7 cycles
-      MOV(state, state->c, state->memory[(state->h << 8) | (state->l)]);
+      state->memory[(state->h << 8 = state->c | (state->l)]);
       state->pc = state->pc + 1;
       break;
    }
    case 0x72: // 0x72   MOV MD      1                    (HL) <- D
    {
       // 7 cycles
-      MOV(state, state->d, state->memory[(state->h << 8) | (state->l)]);
+      state->memory[(state->h << 8 = state->d | (state->l)]);
       state->pc = state->pc + 1;
       break;
    }
    case 0x73: // 0x73   MOV ME      1                    (HL) <- E
    {
       // 7 cycles
-      MOV(state, state->e, state->memory[(state->h << 8) | (state->l)]);
+      state->memory[(state->h << 8 = state->e | (state->l)]);
       state->pc = state->pc + 1;
       break;
    }
    case 0x74: // 0x74   MOV MH      1                    (HL) <- H
    {
       // 7 cycles
-      MOV(state, state->h, state->memory[(state->h << 8) | (state->l)]);
+      state->memory[(state->h << 8 = state->h | (state->l)]);
       state->pc = state->pc + 1;
       break;
    }
@@ -1191,69 +1191,69 @@ void Emulate8080Op(State8080* state)
    {
       // 7 cycles
       state->pc = state->pc + 1;
-      MOV(state, state->l, state->memory[(state->h << 8) | (state->l)]);
+      state->memory[(state->h << 8 = state->l | (state->l)]);
       break;
    }
    case 0x77: // 0x77   MOV MA      1                    (HL) <- A
    {
       // 7 cycles
-      MOV(state, state->a, state->memory[(state->h << 8) | (state->l)]);
+      state->memory[(state->h << 8 = state->a | (state->l)]);
       state->pc = state->pc + 1;
       break;
    }
    case 0x78: // 0x78   MOV AB      1                    A <- B
    {
       // 5 cycles
-      MOV(state, state->b, state->a);
+      state->a = state->b;
       state->pc = state->pc + 1;
       break;
    }
    case 0x79: // 0x79   MOV AC      1                    A <- C
    {
       // 5 cycles
-      MOV(state, state->c, state->a);
+      state->a = state->c;
       state->pc = state->pc + 1;
       break;
    }
    case 0x7A: // 0x7a   MOV AD      1                    A <- D
    {
       // 5 cycles
-      MOV(state, state->d, state->a);
+      state->a = state->d;
       state->pc = state->pc + 1;
       break;
    }
    case 0x7B: // 0x7b   MOV AE      1                    A <- E
    {
       // 5 cycles
-      MOV(state, state->e, state->a);
+      state->a = state->e;
       state->pc = state->pc + 1;
       break;
    }
    case 0x7C: // 0x7c   MOV AH      1                    A <- H
    {
       // 5 cycles
-      MOV(state, state->h, state->a);
+      state->a = state->h;
       state->pc = state->pc + 1;
       break;
    }
    case 0x7D: // 0x7d   MOV AL      1                    A <- L
    {
       // 5 cycles
-      MOV(state, state->l, state->a);
+      state->a = state->l;
       state->pc = state->pc + 1;
       break;
    }
    case 0x7E: // 0x7e   MOV AM      1                    A <- (HL)
    {
       // 7 cycles
-      MOV(state, state->memory[(state->h << 8) | (state->l)], state->a);
+      state->a = state->memory[(state->h << 8) | (state->l)];
       state->pc = state->pc + 1;
       break;
    }
    case 0x7F: // 0x7f   MOV AA      1                    A <- A
    {
       // 5 cycles
-      MOV(state, state->a, state->a);
+      state->a = state->a;
       state->pc = state->pc + 1;
       break;
    }
@@ -1864,7 +1864,6 @@ void Emulate8080Op(State8080* state)
       state->pc = state->pc + 1;
       break;
    }
-
    case 0x09: // 0x09   DAD B       1     CY             HL = HL + BC
    {
       // 10 cycles
