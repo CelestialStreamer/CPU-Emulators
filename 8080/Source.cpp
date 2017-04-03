@@ -212,12 +212,6 @@ void SUB(State8080* state, uint8_t value)
 
    state->a = x & 0xff;
 }
-void SBB(State8080* state, uint8_t value)
-{
-   /// The Carry bit is internally added to the contents of the specified byte.
-   /// This value is then subtracted from the accumulator . . ..
-   SUB(state, value + state->f.c);
-}
 void XRA(State8080* state, uint8_t value)
 {
    uint8_t x = state->a ^ value;
@@ -1116,56 +1110,56 @@ void Emulate8080Op(State8080* state)
    case 0x98: // 0x98   SBB B       1     Z S P CY AC    A <- A - B - CY
    {
       // 4 cycles
-      SBB(state, state->b);
+      SUB(state, state->b + state->f.c);
       state->pc = state->pc + 1;
       break;
    }
    case 0x99: // 0x99   SBB C       1     Z S P CY AC    A <- A - C - CY
    {
       // 4 cycles
-      SBB(state, state->c);
+      SUB(state, state->c + state->f.c);
       state->pc = state->pc + 1;
       break;
    }
    case 0x9A: // 0x9a   SBB D       1     Z S P CY AC    A <- A - D - CY
    {
       // 4 cycles
-      SBB(state, state->d);
+      SUB(state, state->d + state->f.c);
       state->pc = state->pc + 1;
       break;
    }
    case 0x9B: // 0x9b   SBB E       1     Z S P CY AC    A <- A - E - CY
    {
       // 4 cycles
-      SBB(state, state->e);
+      SUB(state, state->e + state->f.c);
       state->pc = state->pc + 1;
       break;
    }
    case 0x9C: // 0x9c   SBB H       1     Z S P CY AC    A <- A - H - CY
    {
       // 4 cycles
-      SBB(state, state->h);
+      SUB(state, state->h + state->f.c);
       state->pc = state->pc + 1;
       break;
    }
    case 0x9D: // 0x9d   SBB L       1     Z S P CY AC    A <- A - L - CY
    {
       // 4 cycles
-      SBB(state, state->l);
+      SUB(state, state->l + state->f.c);
       state->pc = state->pc + 1;
       break;
    }
    case 0x9E: // 0x9e   SBB M       1     Z S P CY AC    A <- A - (HL) - CY
    {
       // 7 cycles
-      SBB(state, state->memory[(state->h << 8) | (state->l)]);
+      SUB(state, state->memory[(state->h << 8) | (state->l)] + state->f.c);
       state->pc = state->pc + 1;
       break;
    }
    case 0x9F: // 0x9f   SBB A       1     Z S P CY AC    A <- A - A - CY
    {
       // 4 cycles
-      SBB(state, state->a);
+      SUB(state, state->a + state->f.c);
       state->pc = state->pc + 1;
       break;
    }
@@ -1778,7 +1772,7 @@ void Emulate8080Op(State8080* state)
    case 0xDE: // 0xde   SBI D8      2     Z S P CY AC    A <- A - data - CY
    {
       // 7 cycles
-      SBB(state, opcode[1]);
+      SUB(state, opcode[1] + state->f.c);
       state->pc = state->pc + 2;
       break;
    }
