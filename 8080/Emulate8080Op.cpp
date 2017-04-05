@@ -3,132 +3,238 @@
 #define FOR_CPUDIAG
 #define DEBUG
 
+#define CODE_1 ((*opcode >> 3) & 0x7) // Grabs bits 00XX X000
+#define CODE_2 ((*opcode >> 0) & 0x7) // Grabs bits 0000 0XXX
 
+// INR Increment Register or Memory (pg 15)
+// Format: 00|REG|100
+//            ^^^
+//    000 for register B
+//    001 for register C
+//    010 for register D
+//    011 for register E
+//    100 for register H
+//    101 for register L
+//    110 for memory ref. M
+//    111 for register A
+// Description: The specified register or memory byte is incremented by one.
+// Condition bits affected: Zero, Sign, Parity, Auxiliary Carry
 void INR(State8080* state, uint8_t reg)
 {
-   // value = value + 1
-   // Z, S, P, AC
-   uint8_t value = state->reg(reg);
-   uint8_t x = value + 1;
+   uint8_t value = state->reg(reg); // Get register/memory ref.
+   uint8_t x = value + 1; // Perform operation
 
+   // Condition bits
    state->Reg.f.z = (x == 0); // Zero flag
    state->Reg.f.s = ((x & 0x80) == 0x80); // Sign flag
    state->Reg.f.p = parity(x); // Parity flag
    state->Reg.f.a = ((((value & 0x0f) + 1) & 0x10) == 0x10); // Auxiliary Carry flag
 
+   // Store result
    state->reg(reg) = x;
 }
 
+// DCR Decrement Register or Memory (pg 15)
+// Format: 00|REG|100
+//            ^^^
+//    000 for register B
+//    001 for register C
+//    010 for register D
+//    011 for register E
+//    100 for register H
+//    101 for register L
+//    110 for memory ref. M
+//    111 for register A
+// Description: The specified register or memory byte is decremented by one.
+// Condition bits affected: Zero, Sign, Parity, Auxiliary Carry
 void DCR(State8080* state, uint8_t reg)
 {
-   // value = value - 1
-   // Z, S, P, AC
-   uint8_t value = state->reg(reg);
-   uint8_t x = value - 1;
+   uint8_t value = state->reg(reg); // Get register/memory ref.
+   uint8_t x = value - 1; // Perform operation
 
+   // Condition bits
    state->Reg.f.z = (x == 0); // Zero flag
    state->Reg.f.s = ((x & 0x80) == 0x80); // Sign flag
    state->Reg.f.p = parity(x); // Parity flag
-   state->Reg.f.a = ((value & 0x0f) < 1); // Half Carry flag
+   state->Reg.f.a = ((value & 0x0f) < 1); // Auxiliary Carry flag
 
+   // Store result
    state->reg(reg) = x;
 }
 
+// MOV Instruction (pg 16)
+// Format: 00|DST|SRC
+//            ^^^ ^^^
+//    000 for register B
+//    001 for register C
+//    010 for register D
+//    011 for register E
+//    100 for register H
+//    101 for register L
+//    110 for memory ref. M
+//    111 for register A
+// NOTE: dst and src cannot both = 110B
+// Description: One byte of data is moved from the register specified by src
+//              (the source register) to the register specified by dst (the
+//              destination register). The data replaces the contents of the
+//              destinatioin register; the source remains unchanged.
+// Condition bits affected: None
 void MOV(State8080* state, uint8_t opcode)
 {
-   uint8_t dst = (opcode >> 3) & 0x7; // 01DSTsrc
-   uint8_t src = (opcode >> 0) & 0x7; // 01dstSRC
+   // This function is never called when dst and src both = 110B.
+   // That opcode instead is used for the HLT instruction.
 
-   state->reg(dst) = state->reg(src);
+   uint8_t dst = (opcode >> 3) & 0x7; // bits 3-5
+   uint8_t src = (opcode >> 0) & 0x7; // bits 0-2
+
+   state->reg(dst) = state->reg(src); // perform operation
 }
 
+// ADD Add Register or Memory to Accumulator (pg 17)
+// Format: 10|000|REG
+// Description:
+//    The specified byte is added to the contents of the
+//    accumulator using two's complement arithmetic.
+// Condition bits affected:
+//    Carry, Sign, Zero, Parity, Auxiliary Carry
 void ADD(State8080* state, uint8_t value)
 {
-   //uint8_t value = state->reg(reg);
-   uint16_t answer = (uint16_t)state->Reg.a + (uint16_t)value; // Emulate 8-bit addition using 16-bit numbers
+   // Emulate 8-bit addition using 16-bit numbers
+   uint16_t answer = (uint16_t)state->Reg.a + (uint16_t)value;
 
+   // Condition bits
    state->Reg.f.z = ((answer & 0xff) == 0); // Zero flag
    state->Reg.f.s = ((answer & 0x80) == 0x80); // Sign flag
    state->Reg.f.p = parity(answer & 0xff); // Parity flag
    state->Reg.f.c = ((answer & 0x100) == 0x100); // Carry flag
    state->Reg.f.a = ((((state->Reg.a & 0xf) + (value & 0xf)) & 0x10) == 0x10); // Auxiliary Carry flag
 
+   // Store result in Accumulator
    state->Reg.a = answer & 0xff;
 }
+
+// ADC Add Register or Memory to Accumulator With Carry (pg 18)
+// Format: 10|001|REG
+// Description:
+//    The specified byte plus the content of the Carry bit is added to
+//    the contents of the accumulator using two's complement arithmetic.
+// Condition bits affected:
+//    Carry, Sign, Zero, Parity, Auxiliary Carry
 void ADC(State8080* state, uint8_t value)
 {
-   //uint8_t value = state->reg(reg);
-   uint16_t answer = (uint16_t)state->Reg.a + (uint16_t)value + (uint16_t)state->Reg.f.c; // Emulate 8-bit addition using 16-bit numbers
+   // Emulate 8-bit addition using 16-bit numbers
+   uint16_t answer = (uint16_t)state->Reg.a + (uint16_t)value + (uint16_t)state->Reg.f.c;
 
+   // Condition bits
    state->Reg.f.z = ((answer & 0xff) == 0); // Zero flag
    state->Reg.f.s = ((answer & 0x80) == 0x80); // Sign flag
    state->Reg.f.p = parity(answer & 0xff); // Parity flag
    state->Reg.f.c = ((answer & 0x100) == 0x100); // Carry flag
-   state->Reg.f.a = ((((state->Reg.a & 0xf) + (value & 0xf) + (state->Reg.f.c)) & 0x10) == 0x10); // Half Carry flag
+   state->Reg.f.a = ((((state->Reg.a & 0xf) + (value & 0xf) + (state->Reg.f.c)) & 0x10) == 0x10); // Auxiliary Carry flag
 
+   // Store result in Accumulator
    state->Reg.a = answer & 0xff;
 }
+// SUB Subtract Register or Memory From Accumulator (pg 18)
+// Format: 10|010|REG
+// Description:
+//    The specified byte is subtracted from the
+//    accumulator using two's complement arithmetic.
+// Condition bits affected:
+//    Carry, Sign, Zero, Parity, Auxiliary Carry
+// If there is no carry out of the high-order bit position, indicating that a
+// borrow occured, the Carry bit is set; otherwise it is reset. (Note that this
+// differs from an add operation, which resets the carry if no overflow occurs).
 void SUB(State8080* state, uint8_t value)
 {
-   //uint8_t value = state->reg(reg);
-   uint16_t x = (uint16_t)state->Reg.a + (uint16_t)(~value + 1); // Emulate 8-bit subtraction using 16-bit numbers
+   // Emulate 8-bit subtraction using 16-bit numbers
+   uint16_t x = (uint16_t)state->Reg.a + (uint16_t)(~value + 1);
 
+   // Condition bits
    state->Reg.f.z = ((x & 0xff) == 0x00); // Zero flag
    state->Reg.f.s = ((x & 0x80) == 0x80); // Sign flag
    state->Reg.f.p = parity(x & 0xff); // Parity flag
    state->Reg.f.c = ((x & 0x100) == 0x100); // Carry flag
    state->Reg.f.a = ((((state->Reg.a & 0xf) + ((~value + 1) & 0xf)) & 0x10) == 0x10); // Auxiliary Carry flag
 
+   // Store result in Accumulator
    state->Reg.a = x & 0xff;
 }
+// SBB Subtract Register or Memory From Accumulator With Borrow (pg 19)
+// Format: 10|011|REG
+// Description:
+//    The Carry bit is internally added to the contents of the specified byte.
+//    This value is then subtracted from the accumulator using two's
+//    complement arithmetic.
+// Condition bits affected:
+//    Carry, Sign, Zero, Parity, Auxiliary Carry
 void SBB(State8080* state, uint8_t value)
 {
    /// The Carry bit is internally added to the contents of the specified byte.
    /// This value is then subtracted from the accumulator . . ..
    SUB(state, value + state->Reg.f.c);
 }
+// ANA Logical and Register or Memory With Accumulator (pg 19)
+// Format: 10|100|REG
+// Description:
+//    The specified byte is logically ANDed bit by bit with the
+//    contents of the accumulator. The Carry bit is reset to zero.
+// Condition bits affected:
+//    Carry, Zero, Sign, Parity
+// The logical AND function of two bits is 1 if and only if both bits equal 1.
 void ANA(State8080* state, uint8_t value)
 {
-   //uint8_t value = state->reg(reg);
+   // Perform operation
    uint8_t x = state->Reg.a & value;
 
+   // Condition bits
    state->Reg.f.z = (x == 0); // Zero flag
    state->Reg.f.s = ((x & 0x80) == 0x80); // Sign flag
    state->Reg.f.p = parity(x); // Parity flag
-   state->Reg.f.c = 0; // Carry flag
-   state->Reg.f.a = 0; // Half Carry flag
+   state->Reg.f.c = 0; // Carry flag (Reset to zero)
+   // Documentation doesn't include this flag,
+   // but I'm adding it because all the rest of the math function set this flag.
+   state->Reg.f.a = 0; // Auxiliary Carry flag
 
+   // Store result in Accumulator
    state->Reg.a = x;
 }
+// XRA Logical Exlusive-Or Register or Memory With Accumulator (Zero Accumulator) (pg 19)
+// Format: 10|101|REG
+// Description:
+//    The specified byte is EXCLUSIVE-ORed bit by bit with the
+//    contents of the accumulator. The Carry bit is reset to zero.
+// Condition bits affected:
+//    Carry, Zero, Sign, Parity, Auxiliary Carry
 void XRA(State8080* state, uint8_t value)
 {
-   //uint8_t value = state->reg(reg);
+   // Perform operation
    uint8_t x = state->Reg.a ^ value;
 
+   // Condition bits
    state->Reg.f.z = (x == 0); // Zero flag
    state->Reg.f.s = ((x & 0x80) == 0x80); // Sign flag
    state->Reg.f.p = parity(x); // Parity flag
    state->Reg.f.c = 0; // Carry flag
-   state->Reg.f.a = 0; // Half Carry flag
+   state->Reg.f.a = 0; // Auxiliary Carry flag
 
+   // Store result in Accumulator
    state->Reg.a = x;
 }
 void ORA(State8080* state, uint8_t value)
 {
-   //uint8_t value = state->reg(reg);
    uint8_t x = state->Reg.a | value;
 
    state->Reg.f.z = (x == 0); // Zero flag
    state->Reg.f.s = ((x & 0x80) == 0x80); // Sign flag
    state->Reg.f.p = parity(x); // Parity flag
    state->Reg.f.c = 0; // Carry flag
-   state->Reg.f.a = 0; // Half Carry flag
+   state->Reg.f.a = 0; // Auxiliary Carry flag
 
    state->Reg.a = x;
 }
 void CMP(State8080* state, uint8_t value)
 {
-   //uint8_t value = state->reg(reg);
    uint16_t x = (uint16_t)state->Reg.a + (uint16_t)(~value + 1);
 
    state->Reg.f.z = ((x & 0xff) == 0x00); // Zero flag
@@ -139,12 +245,23 @@ void CMP(State8080* state, uint8_t value)
 }
 void(*math[])(State8080* state, uint8_t reg) = { ADD, ADC, SUB, SBB, ANA, XRA, ORA, CMP };
 
+bool NZ(State8080* state) { return state->Reg.f.z == 0; }
+bool  Z(State8080* state) { return state->Reg.f.z == 1; }
+bool NC(State8080* state) { return state->Reg.f.c == 0; }
+bool  C(State8080* state) { return state->Reg.f.c == 1; }
+bool PO(State8080* state) { return state->Reg.f.p == 0; }
+bool PE(State8080* state) { return state->Reg.f.p == 1; }
+bool  P(State8080* state) { return state->Reg.f.s == 0; }
+bool  M(State8080* state) { return state->Reg.f.s == 1; }
+
+bool(*tests[])(State8080* state) = { NZ, Z, NC, C, PO, PE, P, M };
+
 void RET(State8080* state)
 {
    state->Reg.pc
-      = (((uint16_t)state->memory[state->Reg.sp + 0]) << 0)  // PC.lo <- (sp);
-      | (((uint16_t)state->memory[state->Reg.sp + 1]) << 8); // PC.hi<-(sp+1);
-   state->Reg.sp = state->Reg.sp + 2; // SP <- SP+2
+      = (state->memory[state->Reg.sp + 0] << 0)  // PC.lo <- (sp);
+      | (state->memory[state->Reg.sp + 1] << 8); // PC.hi <- (sp+1);
+   state->Reg.sp = state->Reg.sp + 2; // SP <- SP + 2
 }
 
 void CALL(State8080* state, uint16_t value)
@@ -152,7 +269,7 @@ void CALL(State8080* state, uint16_t value)
    uint16_t ret = state->Reg.pc + 3; // ret is address of next operation
    state->memory[state->Reg.sp - 1] = (ret >> 8) & 0xff; // (SP-1) = PC.hi
    state->memory[state->Reg.sp - 2] = (ret >> 0) & 0xff; // (SP-2) = PC.lo
-   state->Reg.sp = state->Reg.sp - 2;                        // SP = SP - 2
+   state->Reg.sp = state->Reg.sp - 2;                    // SP = SP - 2
    state->Reg.pc = value;
 }
 
@@ -161,7 +278,7 @@ void RST(State8080* state, uint16_t value)
    uint16_t ret = state->Reg.pc + 1; // ret is address of next operation
    state->memory[state->Reg.sp - 1] = (ret >> 8) & 0xff; // (SP-1) = PC.hi
    state->memory[state->Reg.sp - 2] = (ret >> 0) & 0xff; // (SP-2) = PC.lo
-   state->Reg.sp = state->Reg.sp - 2;                        // SP = SP - 2
+   state->Reg.sp = state->Reg.sp - 2;                    // SP = SP - 2
    state->Reg.pc = value;
 }
 
@@ -177,14 +294,14 @@ void State8080::Emulate8080Op()
    switch (*opcode)
    {          // Opcode Instruction size  flags          function
    // CARRY BIT INSTRUCTIONS: CMC, STC
-   case 0x3F: // 0x3f   CMC         1     CY             CY=!CY
+   case 0x3F: // 0x3f   CMC         1     CY             CY <- !CY
    {
       // 4 cycles
       Reg.f.c = !Reg.f.c;
       Reg.pc = Reg.pc + 1;
       break;
    }
-   case 0x37: // 0x37   STC         1     CY             CY = 1
+   case 0x37: // 0x37   STC         1     CY             CY <- 1
    {
       // 4 cycles
       Reg.f.c = 1;
@@ -203,7 +320,7 @@ void State8080::Emulate8080Op()
    case 0x3C: // 0x3c   INR A       1     Z S P AC       A <- A+1
    {
       // 5 cycles
-      INR(this, (*opcode >> 3 ) & 7);
+      INR(this, CODE_1);
       Reg.pc = Reg.pc + 1;
       break;
    }
@@ -218,7 +335,7 @@ void State8080::Emulate8080Op()
    case 0x3D: // 0x3d   DCR A       1     Z S P AC       A <- A-1
    {
       // 5 cycles
-      DCR(this, (*opcode >> 3) & 7);
+      DCR(this, CODE_1);
       Reg.pc = Reg.pc + 1;
       break;
    }
@@ -253,14 +370,16 @@ void State8080::Emulate8080Op()
          Reg.a = Reg.a + 0x06;
       }
       else
+      {
          // TODO: Is the following line of code correct? Everything else is fine.
          Reg.f.a = 0; // I guess no carry out occured, so AC is reset.
+      }
 
-                         /// Step (2)
-                         /// If the (greater) four bits of the accumulator now (are) greater than 9,
-                         /// or if the normal carry bit is equal to one,
-                         /// the most significant four bits of the accumulator are incremented by six.
-                         /// Otherwise, no incrementing occurs.
+      /// Step (2)
+      /// If the (greater) four bits of the accumulator now (are) greater than 9,
+      /// or if the normal carry bit is equal to one,
+      /// the most significant four bits of the accumulator are incremented by six.
+      /// Otherwise, no incrementing occurs.
       if (((Reg.a & 0xf0) > 0x90) || (Reg.f.c == 1))
       {
          uint16_t x = (uint16_t)(Reg.a & 0xf0) + (uint16_t)0x60;
@@ -358,8 +477,8 @@ void State8080::Emulate8080Op()
       // ALL MOV opcodes
       // If dst or src = 110B, 7 cycles, else 5 cycles
 
-      uint8_t dst = (*opcode >> 3) & 0x7; // 01DDDSSS
-      uint8_t src = (*opcode >> 0) & 0x7; // 01DDDSSS
+      uint8_t dst = CODE_1; // 01DDDSSS
+      uint8_t src = CODE_2; // 01DDDSSS
       reg(dst) = reg(src);
 
       Reg.pc = Reg.pc + 1;
@@ -369,14 +488,14 @@ void State8080::Emulate8080Op()
    case 0x02: // 0x02   STAX B      1                    (BC) <- A
    {
       // 7 cycles
-      memory[(Reg.b << 8) | (Reg.c << 0)] = Reg.a;
+      memory[(Reg.b << 8) | (Reg.c)] = Reg.a;
       Reg.pc = Reg.pc + 1;
       break;
    }
    case 0x12: // 0x12   STAX D      1                    (DE) <- A
    {
       // 7 cycles
-      memory[(Reg.d << 8) | (Reg.e << 0)] = Reg.a;
+      memory[(Reg.d << 8) | (Reg.e)] = Reg.a;
       Reg.pc = Reg.pc + 1;
       break;
    }
@@ -462,8 +581,8 @@ void State8080::Emulate8080Op()
    case 0xBE: // 0xbe   CMP M       1     Z S P CY AC    A - (HL)
    case 0xBF: // 0xbf   CMP A       1     Z S P CY AC    A - A
    {
-      uint8_t op = (*opcode >> 3) & 0x7;
-      uint8_t reg = (*opcode >> 0) & 0x7;
+      uint8_t op = CODE_1;
+      uint8_t reg = CODE_2;
       math[op](this, this->reg(reg));
 
       Reg.pc = Reg.pc + 1;
@@ -644,7 +763,7 @@ void State8080::Emulate8080Op()
       break;
    }
 
-   case 0x03: // 0x03   INX B       1                    BC <- BC+1
+   case 0x03: // 0x03   INX B       1                    BC <- BC + 1
    {
       // 5 cycles
       Reg.c = Reg.c + 1;
@@ -679,37 +798,34 @@ void State8080::Emulate8080Op()
       break;
    }
 
-   case 0x0B: // 0x0b   DCX B       1                    BC = BC-1
+   case 0x0B: // 0x0b   DCX B       1                    BC = BC - 1
    {
       // 5 cycles
-      uint32_t bc = (Reg.b << 8) | (Reg.c);
-      uint32_t res = bc - 1;
-      Reg.b = (res & 0xff00) >> 8;
-      Reg.c = (res & 0x00ff) >> 0;
+      if (Reg.c == 0)
+         Reg.b = Reg.b - 1;
+      Reg.c = Reg.c - 1;
       Reg.pc = Reg.pc + 1;
       break;
    }
-   case 0x1B: // 0x1b   DCX D       1                    DE = DE-1
+   case 0x1B: // 0x1b   DCX D       1                    DE = DE - 1
    {
       // 5 cycles
-      uint32_t de = (Reg.d << 8) | (Reg.e);
-      uint32_t res = de - 1;
-      Reg.d = (res & 0xff00) >> 8;
-      Reg.e = (res & 0x00ff) >> 0;
+      if (Reg.e == 0)
+         Reg.d = Reg.d - 1;
+      Reg.e = Reg.e - 1;
       Reg.pc = Reg.pc + 1;
       break;
    }
-   case 0x2B: // 0x2b   DCX H       1                    HL = HL-1
+   case 0x2B: // 0x2b   DCX H       1                    HL = HL - 1
    {
       // 5 cycles
-      uint32_t hl = (Reg.h << 8) | (Reg.l);
-      uint32_t res = hl - 1;
-      Reg.h = (res & 0xff00) >> 8;
-      Reg.l = (res & 0x00ff) >> 0;
+      if (Reg.l == 0)
+         Reg.h = Reg.h - 1;
+      Reg.l = Reg.l - 1;
       Reg.pc = Reg.pc + 1;
       break;
    }
-   case 0x3B: // 0x3b   DCX SP      1                    SP = SP-1
+   case 0x3B: // 0x3b   DCX SP      1                    SP = SP - 1
    {
       // 5 cycles
       Reg.sp = Reg.sp - 1;
@@ -774,17 +890,17 @@ void State8080::Emulate8080Op()
       break;
    }
 
-   case 0x06: // 0x06   MVI b D8    2                    b <- byte 2
+   case 0x06: // 0x06   MVI B D8    2                    B <- byte 2
    case 0x0E: // 0x0e   MVI C D8    2                    C <- byte 2
    case 0x16: // 0x16   MVI D D8    2                    D <- byte 2
-   case 0x1E: // 0x1e   MVI e D8    2                    E <- byte 2
+   case 0x1E: // 0x1e   MVI E D8    2                    E <- byte 2
    case 0x26: // 0x26   MVI H D8    2                    H <- byte 2
    case 0x2E: // 0x2e   MVI L D8    2                    L <- byte 2
    case 0x36: // 0x36   MVI M D8    2                    (HL) <- byte 2
    case 0x3E: // 0x3e   MVI A D8    2                    A <- byte 2
    {
       // 7 cycles
-      reg((*opcode >> 3) & 0x7) = opcode[1];
+      reg(CODE_1) = opcode[1];
       Reg.pc = Reg.pc + 2;
       break;
    }
@@ -798,7 +914,7 @@ void State8080::Emulate8080Op()
    case 0xF6: // 0xf6   ORI D8      2     Z S P CY AC    A <- A | data
    case 0xFE: // 0xfe   CPI D8      2     Z S P CY AC    A - data
    {
-      uint8_t op = (*opcode >> 3) & 0x7;
+      uint8_t op = CODE_1;
       math[op](this, immediate());
 
       Reg.pc = Reg.pc + 2;
@@ -845,100 +961,26 @@ void State8080::Emulate8080Op()
    case 0xE9: // 0xe9   PCHL        1                    Reg.pc.hi <- H; Reg.pc.lo <- L
    {
       // 5 cycles
-      Reg.pc
-         = (((uint16_t)Reg.h) << 8)
-         | (((uint16_t)Reg.l) << 0);
+      Reg.pc = (Reg.h << 8) | (Reg.l << 0);
       break;
    }
-   case 0xC3: // 0xc3   JMP adr     3                    Reg.pc <- adr
+   case 0xC3: // 0xc3   JMP adr     3                    pc <- adr
    {
       // 10 cycles
       Reg.pc = address();
       break;
    }
-   case 0xDA: // 0xda   JC  adr     3                    if CY Reg.pc<-adr
+   case 0xDA: // 0xda   JC  adr     3                    if C  pc <- adr
+   case 0xD2: // 0xd2   JNC adr     3                    if NC pc <- adr
+   case 0xCA: // 0xca   JZ  adr     3                    if Z  pc <- adr
+   case 0xC2: // 0xc2   JNZ adr     3                    if NZ pc <- adr
+   case 0xFA: // 0xfa   JM  adr     3                    if M  pc <- adr
+   case 0xF2: // 0xf2   JP  adr     3                    if P  pc <- adr
+   case 0xEA: // 0xea   JPE adr     3                    if PE pc <- adr
+   case 0xE2: // 0xe2   JPO adr     3                    if PO pc <- adr
    {
       // 10 cycles
-      if (Reg.f.c == 1)
-         Reg.pc = address();
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xD2: // 0xd2   JNC adr     3                    if NCY Reg.pc<-adr
-   {
-      // 10 cycles
-      if (Reg.f.c == 0)
-         Reg.pc = address();
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xCA: // 0xca   JZ  adr     3                    if Z Reg.pc <- adr
-   {
-      // 10 cycles
-      if (Reg.f.z == 1)
-         Reg.pc = address();
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xC2: // 0xc2   JNZ adr     3                    if NZ Reg.pc <- adr
-   {
-      // 10 cycles
-      if (Reg.f.z == 0)
-         Reg.pc = address();
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xFA: // 0xfa   JM  adr     3                    if S=1 Reg.pc <- adr
-   {
-      // Manual says:
-      // "If the sign bit is one (indicating a negative result),
-      // program execution continues at the memory adr."
-
-      // 10 cycles
-      if (Reg.f.s == 1)
-         Reg.pc = address();
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xF2: // 0xf2   JP  adr     3                    if S=0 Reg.pc <- adr
-   {
-      // Manual says:
-      // "If the sign bit is zero, (indicating a positive result),
-      // program execution continues at the memory adr."
-
-      // 10 cycles
-      if (Reg.f.s == 0)
-         Reg.pc = address();
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xEA: // 0xea   JPE adr     3                    if P=1 Reg.pc <- adr
-   {
-      // Manual says:
-      // "If the parity bit is one (indicating a result with even parity),
-      // program execution continues at the memory address adr.
-
-      // 10 cycles
-      if (Reg.f.p == 1)
-         Reg.pc = address();
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xE2: // 0xe2   JPO adr     3                    if P=0 Reg.pc <- adr
-   {
-      // Manual says:
-      // If the parity bit is zero (indicating a result with odd parity),
-      // program execution continues at the memory address adr."
-
-      // 10 cycles
-      if (Reg.f.p == 0)
+      if (tests[CODE_1](this))
          Reg.pc = address();
       else
          Reg.pc = Reg.pc + 3;
@@ -970,79 +1012,16 @@ void State8080::Emulate8080Op()
       CALL(this, address());
       break;
    }
-   case 0xDC: // 0xdc   CC a dr     3                    if CY CALL adr
-   {
-      // 17/11 cycles
-      if (Reg.f.c == 1)
-         CALL(this, address());
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xD4: // 0xd4   CNC adr     3                    if NCY CALL adr
-   {
-      // 17/11 cycles
-      if (Reg.f.c == 0)
-         CALL(this, address());
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xCC: // 0xcc   CZ a dr     3                    if Z CALL adr
-   {
-      /// Description: If the Zero bit is *(one), a call operation is
-      /// performed to subroutine sub.
-
-      // 17/11 cycles
-      if (Reg.f.z == 1)
-         CALL(this, address());
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
+   case 0xDC: // 0xdc   CC  adr     3                    if C  CALL adr
+   case 0xD4: // 0xd4   CNC adr     3                    if NC CALL adr
+   case 0xCC: // 0xcc   CZ  adr     3                    if Z  CALL adr
    case 0xC4: // 0xc4   CNZ adr     3                    if NZ CALL adr
-   {
-      /// Description: If the Zero bit is *(zero), a call operation is
-      /// performed to subroutine sub.
-
-      // 17/11 cycles
-      if (Reg.f.z == 0)
-         CALL(this, address());
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xFC: // 0xfc   CM a dr     3                    if S CALL adr
-   {
-      // 17/11 cycles
-      if (Reg.f.s == 1)
-         CALL(this, address());
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
-   case 0xF4: // 0xf4   CP a dr     3                    if NS Reg.pc <- adr
-   {
-      // 17/11 cycles
-      if (Reg.f.s == 0)
-         CALL(this, address());
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
+   case 0xFC: // 0xfc   CM  adr     3                    if M  CALL adr
+   case 0xF4: // 0xf4   CP  adr     3                    if P  CALL adr
    case 0xEC: // 0xec   CPE adr     3                    if PE CALL adr
-   {
-      // 17/11 cycles
-      if (Reg.f.p == 1)
-         CALL(this, address());
-      else
-         Reg.pc = Reg.pc + 3;
-      break;
-   }
    case 0xE4: // 0xe4   CPO adr     3                    if PO CALL adr
    {
-      // 17/11 cycles
-      if (Reg.f.p == 0)
+      if (tests[CODE_1](this))
          CALL(this, address());
       else
          Reg.pc = Reg.pc + 3;
@@ -1056,73 +1035,16 @@ void State8080::Emulate8080Op()
       RET(this);
       break;
    }
-   case 0xD8: // 0xd8   RC          1                    if CY RET
-   {
-      // 11/5 cycles
-      if (Reg.f.c == 1)
-         RET(this);
-      else
-         Reg.pc = Reg.pc + 1;
-      break;
-   }
-   case 0xD0: // 0xd0   RNC         1                    if NCY RET
-   {
-      // 11/5 cycles
-      if (Reg.f.c == 0)
-         RET(this);
-      else
-         Reg.pc = Reg.pc + 1;
-      break;
-   }
-   case 0xC8: // 0xc8   RZ          1                    if Z RET
-   {
-      // 11/5 cycles
-      if (Reg.f.z == 1)
-         RET(this);
-      else
-         Reg.pc = Reg.pc + 1;
-      break;
-   }
+   case 0xD8: // 0xd8   RC          1                    if C  RET
+   case 0xD0: // 0xd0   RNC         1                    if NC RET
+   case 0xC8: // 0xc8   RZ          1                    if Z  RET
    case 0xC0: // 0xc0   RNZ         1                    if NZ RET
-   {
-      // 11/5 cycles
-      if (Reg.f.z == 0)
-         RET(this);
-      else
-         Reg.pc = Reg.pc + 1;
-      break;
-   }
-   case 0xF8: // 0xf8   RM          1                    if S RET
-   {
-      // 11/5 cycles
-      if (Reg.f.s == 1)
-         RET(this);
-      else
-         Reg.pc = Reg.pc + 1;
-      break;
-   }
-   case 0xF0: // 0xf0   RP          1                    if NS RET
-   {
-      // 11/5 cycles
-      if (Reg.f.s == 0)
-         RET(this);
-      else
-         Reg.pc = Reg.pc + 1;
-      break;
-   }
+   case 0xF8: // 0xf8   RM          1                    if M  RET
+   case 0xF0: // 0xf0   RP          1                    if P  RET
    case 0xE8: // 0xe8   RPE         1                    if PE RET
-   {
-      // 11/5 cycles
-      if (Reg.f.p == 1)
-         RET(this);
-      else
-         Reg.pc = Reg.pc + 1;
-      break;
-   }
    case 0xE0: // 0xe0   RPO         1                    if PO RET
    {
-      // 11/5 cycles
-      if (Reg.f.p == 0)
+      if (tests[CODE_1](this))
          RET(this);
       else
          Reg.pc = Reg.pc + 1;
@@ -1140,7 +1062,7 @@ void State8080::Emulate8080Op()
    case 0xFF: // 0xff   RST 7       1                    CALL $38
    {
       // 11 cycles
-      RST(this, *opcode & 0x38); // *opcode & 0x38 == ((*opcode >> 3) & 0x7) << 3
+      RST(this, *opcode & 0x38); // *opcode & 0x38 == (CODE_1) << 3
       break;
    }
 
@@ -1149,7 +1071,7 @@ void State8080::Emulate8080Op()
    {
       // 4 cycles
       // Enable Interrupts
-      int_enable = true;
+      interrupt_enabled = true;
       Reg.pc = Reg.pc + 1;
       break;
    }
@@ -1157,13 +1079,13 @@ void State8080::Emulate8080Op()
    {
       // 4 cycles
       // Disable Interrupts
-      int_enable = false;
+      interrupt_enabled = false;
       Reg.pc = Reg.pc + 1;
       break;
    }
 
    // INPUT/OUTPUT INSTRUCTIONS: IN, OUT
-   case 0xDB: // 0xdb   IN D 8      2                    special
+   case 0xDB: // 0xdb   IN  D8      2                    special
    {
       // 10 cycles
       // Read input port into A
