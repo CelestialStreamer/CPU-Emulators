@@ -1,6 +1,7 @@
 #include "State8080.h"
 #include <iostream>
 #include <iomanip>
+#include <bitset>
 
 uint8_t parity(uint8_t v)
 {
