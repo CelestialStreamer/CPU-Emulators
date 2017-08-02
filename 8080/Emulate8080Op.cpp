@@ -5,8 +5,8 @@
 #define FOR_CPUDIAG
 #define DEBUG
 
-#define CODE_1 ((immediate() >> 3) & 0x7) // Grabs bits ..XX X...
-#define CODE_2 ((immediate() >> 0) & 0x7) // Grabs bits .... .XXX
+#define CODE_1 ((opcode >> 3) & 0x7) // Grabs bits ..XX X...
+#define CODE_2 ((opcode >> 0) & 0x7) // Grabs bits .... .XXX
 
 void State8080::generateInterrupt(uint8_t opcode)
 {
@@ -87,55 +87,7 @@ void State8080::Emulate8080Op()
    }
    case 0x27: // 0x27   DAA         1     Z S P CY AC    special
    {
-      // 4 cycles
-
-      /// DAA Decimal Adjust Accumulator
-
-      ///      Description: The eight-bit hexadecimal number in the
-      /// accumulator is adjusted to form two four-bit binary-coded-
-      /// decimal digits by the following two step process:
-
-      /// Step (1)
-      /// If the (lower) four bits of the accumulator (are) greater than 9,
-      /// or if the Auxiliary Carry bit is equal to one,
-      /// the accumulator is incremented by six.
-      /// Otherwise, no incrementing occurs.
-      if (((Reg.a & 0x0f) > 0x09) || (Reg.f.a == 1))
-      {
-         uint8_t x = (Reg.a & 0x0f) + 0x06;
-         // Auxiliary Carry flag set/reset if carry out on low 4 bits did/not occur
-         Reg.f.a = ((x & 0x10) == 0x10);
-         Reg.a = Reg.a + 0x06;
-      }
-      else
-      {
-         // TODO: Is the following line of code correct? Everything else is fine.
-         Reg.f.a = 0; // I guess no carry out occured, so AC is reset.
-      }
-
-      /// Step (2)
-      /// If the (greater) four bits of the accumulator now (are) greater than 9,
-      /// or if the normal carry bit is equal to one,
-      /// the most significant four bits of the accumulator are incremented by six.
-      /// Otherwise, no incrementing occurs.
-      if (((Reg.a & 0xf0) > 0x90) || (Reg.f.c == 1))
-      {
-         uint16_t x = (uint16_t)(Reg.a & 0xf0) + (uint16_t)0x60;
-         // Carry flag set/reset if carry out on high 4 bits did/not occur
-         Reg.f.c = ((x & 0x100) == 0x100);
-         Reg.a = Reg.a + 0x60;
-      }
-
-      /// If a carry out of the least significant four bits occurs during Step (1),
-      /// the Auxiliary Carry bit is set; otherwise it is reset.
-      /// Likewise, if a carry out of the most significant four bits occur during Step (2),
-      /// the normal Carry bit is set; otherwise, it is unaffected.
-
-      // Condition bits
-      Reg.f.z = (Reg.a == 0);             // Zero flag
-      Reg.f.s = ((Reg.a & 0x80) == 0x80); // Sign flag
-      Reg.f.p = parity(Reg.a);            // Parity flag
-
+      DAA(this);
       Reg.pc = Reg.pc + 1;
       break;
    }
@@ -441,18 +393,21 @@ void State8080::Emulate8080Op()
    {
       // 10 cycles
       POP(this, Reg.c, Reg.b);
+      Reg.pc = Reg.pc + 1;
       break;
    }
    case 0xD1: // 0xd1   POP D       1                    E <- (sp); D <- (sp+1); sp <- sp+2
    {
       // 10 cycles
       POP(this, Reg.d, Reg.e);
+      Reg.pc = Reg.pc + 1;
       break;
    }
    case 0xE1: // 0xe1   POP H       1                    L <- (sp); H <- (sp+1); sp <- sp+2
    {
       // 10 cycles
       POP(this, Reg.h, Reg.l);
+      Reg.pc = Reg.pc + 1;
       break;
    }
    case 0xF1: // 0xf1   POP PSW     1     Z S P CY AC    flags <- (sp); A <- (sp+1); sp <- sp+2
@@ -706,7 +661,8 @@ void State8080::Emulate8080Op()
    case 0xE2: // 0xe2   JPO adr     3                    if PO pc <- adr
    {
       // 10 cycles
-      if (tests[CODE_1](this))
+      int test = CODE_1;
+      if (tests[test](this))
          Reg.pc = address();
       else
          Reg.pc = Reg.pc + 3;
@@ -817,7 +773,7 @@ void State8080::Emulate8080Op()
       // 10 cycles
       // Read input port into A
       uint8_t port = immediate();
-      Reg.a = in(port);
+      Reg.a = io.read(port);
       Reg.pc = Reg.pc + 2;
       break;
    }
@@ -826,7 +782,7 @@ void State8080::Emulate8080Op()
       // 10 cycles
       // Write A to ouput port
       uint8_t port = immediate();
-      out(port, Reg.a);
+      io.write(port, Reg.a);
       Reg.pc = Reg.pc + 2;
       break;
    }
