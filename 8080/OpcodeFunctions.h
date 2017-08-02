@@ -31,10 +31,10 @@ void INR(State8080* state, uint8_t reg)
    state->getRegister(reg) = x;
 
    // Condition bits
-   state->Reg.f.z = (x == 0);                                // Zero flag
-   state->Reg.f.s = ((x & 0x80) == 0x80);                    // Sign flag
+   state->Reg.f.z = (x == 0 ? SET : RESET);                                // Zero flag
+   state->Reg.f.s = ((x & 0x80) == 0x80 ? SET : RESET);                    // Sign flag
    state->Reg.f.p = parity(x);                               // Parity flag
-   state->Reg.f.a = ((((value & 0x0f) + 1) & 0x10) == 0x10); // Auxiliary Carry flag
+   state->Reg.f.a = ((((value & 0x0f) + 1) & 0x10) == 0x10 ? SET : RESET); // Auxiliary Carry flag
 }
 
 // DCR Decrement Register or Memory (pg 15)
@@ -71,6 +71,85 @@ void DCR(State8080* state, uint8_t reg)
    state->Reg.f.s = ((x & 0x80) == 0x80); // Sign flag
    state->Reg.f.p = parity(x);            // Parity flag
    state->Reg.f.a = ((value & 0x0f) < 1); // Auxiliary Carry flag
+}
+
+// DAA Decimal Adjust Accumulator
+//
+// Format: 00100111
+//
+// Description:
+//       The eight-bit hexadecimal number in the accumulator is
+//    adjusted to form two four-bit binary-coded-decimal digits
+//    by the following two step process:
+//       (1) If the least significant four bits of the accumulator
+//    represents a number greater than 9, or if the Auxiliary Carry
+//    bit is equal to one, the accumulator is incremented by six.
+//    Otherwise, no incrementing occurs.
+//       (2) If the most significant four bits of the accumulator
+//    now represent a number greater than 9, or if the normal carry
+//    bit is equal to one, the most significant four bits of the
+//    accumulator are incremented by six. Otherwise, no incrementing
+///   occurs.
+//       If a carry out of the least significant four bits occurs
+//    during Step (1), the Auxiliary Carry bit is set; otherwise it
+//    is reset. Likewise, if a carry out of the most significant four
+//    bits occur during Step (2), the normal Carry bit is set;
+//    otherwise, it is unaffected.
+//
+// NOTE:
+//       This instruction is used when adding decimal numbers. It is
+//    the only instruction whose operaiton is affected by the Auxiliary
+//    Carry bit.
+//
+// Condition bits affected:
+//    Zero, Sign, Parity, Carry, Auxiliary Carry
+void DAA(State8080* state)
+{
+   /// Step (1)
+   /// If LSBits > 9 or AC is set ...
+   if (((state->Reg.a & 0x0f) > 0x09) || (state->Reg.f.a == SET))
+   {
+      // Compute carry out of bit 3
+      uint8_t x = (state->Reg.a & 0x0f) + 0x06;
+
+      // Auxiliary Carry flag set/reset if carry out on low 4 bits did/not occur
+      if ((x & 0x10) == 0x10)
+         state->Reg.f.a = SET;
+      else
+         state->Reg.f.a = RESET;
+
+      /// ... increment accumulator by six, ...
+      state->Reg.a = state->Reg.a + 0x06;
+   }
+   /// ... otherwise, no incrementing occurs.
+   else
+   {
+      // TODO: Is the following line of code correct? Everything else is fine.
+      state->Reg.f.a = RESET; // I guess no carry out occured, so AC is reset.
+   }
+
+   /// Step (2)
+   /// Now if MSBits > 9 or normal carry is set ...
+   if (((state->Reg.a & 0xf0) > 0x90) || (state->Reg.f.c == SET))
+   {
+      // Compute carry out of bit 7
+      uint16_t x = (uint16_t)(state->Reg.a & 0xf0) + (uint16_t)0x60;
+
+      // Carry flag set/reset if carry out on high 4 bits did/not occur
+      if ((x & 0x100) == 0x100)
+         state->Reg.f.c = SET;
+      else
+         state->Reg.f.c = RESET;
+
+      /// ... increment MSB of accumulator by six, ...
+      state->Reg.a = state->Reg.a + 0x60;
+   }
+   /// ... otherwise, no incrementing occurs.
+
+   // Condition bits
+   state->Reg.f.z = (state->Reg.a == 0             ? SET : RESET); // Zero flag
+   state->Reg.f.s = ((state->Reg.a & 0x80) == 0x80 ? SET : RESET); // Sign flag
+   state->Reg.f.p = parity(state->Reg.a);                          // Parity flag
 }
 
 // MOV Instruction (pg 16)
@@ -123,15 +202,18 @@ void ADD(State8080* state, uint8_t value)
    // Emulate 8-bit addition using 16-bit numbers
    uint16_t answer = (uint16_t)state->Reg.a + (uint16_t)value;
 
+   // Compute carry out of bottom four bits
+   uint8_t x = (state->Reg.a & 0x0f) + (value & 0x0f);
+
    // Store result in Accumulator
    state->Reg.a = answer & 0xff;
 
    // Condition bits
-   state->Reg.f.z = ((answer & 0xff) == 0);        // Zero flag
-   state->Reg.f.s = ((answer & 0x80) == 0x80);     // Sign flag
-   state->Reg.f.p = parity(answer & 0xff);         // Parity flag
-   state->Reg.f.c = ((answer & 0x100) == 0x100);   // Carry flag
-   state->Reg.f.a = ((((state->Reg.a & 0xf) + (value & 0xf)) & 0x10) == 0x10); // Auxiliary Carry flag
+   state->Reg.f.z = ((answer & 0xff) == 0      ? SET : RESET); // Zero   flag
+   state->Reg.f.s = ((answer & 0x80) == 0x80   ? SET : RESET); // Sign   flag
+   state->Reg.f.p = parity(answer & 0xff);                     // Parity flag
+   state->Reg.f.c = ((answer & 0x100) == 0x100 ? SET : RESET); // Carry  flag
+   state->Reg.f.a = ((x & 0x10) == 0x10        ? SET : RESET); // Auxiliary Carry flag
 }
 
 // ADC Add Register or Memory to Accumulator With Carry (pg 18)
@@ -149,15 +231,18 @@ void ADC(State8080* state, uint8_t value)
    // Emulate 8-bit addition using 16-bit numbers
    uint16_t answer = (uint16_t)state->Reg.a + (uint16_t)value + (uint16_t)state->Reg.f.c;
 
+   // Compute carry out of bottom four bits
+   uint8_t x = (state->Reg.a & 0x0f) + (value & 0x0f) + (state->Reg.f.c == SET ? 1 : 0);
+
    // Store result in Accumulator
    state->Reg.a = answer & 0xff;
 
    // Condition bits
-   state->Reg.f.z = ((answer & 0xff) == 0);        // Zero flag
-   state->Reg.f.s = ((answer & 0x80) == 0x80);     // Sign flag
-   state->Reg.f.p = parity(answer & 0xff);         // Parity flag
-   state->Reg.f.c = ((answer & 0x100) == 0x100);   // Carry flag
-   state->Reg.f.a = ((((state->Reg.a & 0xf) + (value & 0xf) + (state->Reg.f.c)) & 0x10) == 0x10); // Auxiliary Carry flag
+   state->Reg.f.z = ((answer & 0xff) == 0      ? SET : RESET); // Zero   flag
+   state->Reg.f.s = ((answer & 0x80) == 0x80   ? SET : RESET); // Sign   flag
+   state->Reg.f.p = parity(answer & 0xff);                     // Parity flag
+   state->Reg.f.c = ((answer & 0x100) == 0x100 ? SET : RESET); // Carry  flag
+   state->Reg.f.a = ((x & 0x10) == 0x10        ? SET : RESET); // Auxiliary Carry flag
 }
 // SUB Subtract Register or Memory From Accumulator (pg 18)
 //
@@ -176,17 +261,20 @@ void ADC(State8080* state, uint8_t value)
 void SUB(State8080* state, uint8_t value)
 {
    // Emulate 8-bit subtraction using 16-bit numbers
-   uint16_t x = (uint16_t)state->Reg.a + (uint16_t)(~value + 1);
+   uint16_t answer = (uint16_t)state->Reg.a + (uint16_t)(~value + 1);
+
+   // Compute carry out of bottom four bits
+   uint8_t carry = (state->Reg.a & 0x0f) + ((~value + 1) & 0x0f);
 
    // Store result in Accumulator
-   state->Reg.a = x & 0xff;
+   state->Reg.a = answer & 0xff;
 
    // Condition bits
-   state->Reg.f.z = ((x & 0xff) == 0x00);    // Zero flag
-   state->Reg.f.s = ((x & 0x80) == 0x80);    // Sign flag
-   state->Reg.f.p = parity(x & 0xff);        // Parity flag
-   state->Reg.f.c = ((x & 0x100) == 0x100);  // Carry flag
-   state->Reg.f.a = ((((state->Reg.a & 0xf) + ((~value + 1) & 0xf)) & 0x10) == 0x10); // Auxiliary Carry flag
+   state->Reg.f.z = ((answer & 0xff) == 0      ? SET : RESET); // Zero   flag
+   state->Reg.f.s = ((answer & 0x80) == 0x80   ? SET : RESET); // Sign   flag
+   state->Reg.f.p = parity(answer & 0xff);                     // Parity flag
+   state->Reg.f.c = ((answer & 0x100) == 0x100 ? SET : RESET); // Carry  flag
+   state->Reg.f.a = ((carry & 0x10) == 0x10        ? SET : RESET); // Auxiliary Carry flag
 }
 // SBB Subtract Register or Memory From Accumulator With Borrow (pg 19)
 //
@@ -229,13 +317,13 @@ void ANA(State8080* state, uint8_t value)
    state->Reg.a = x;
 
    // Condition bits
-   state->Reg.f.z = (x == 0);             // Zero flag
-   state->Reg.f.s = ((x & 0x80) == 0x80); // Sign flag
-   state->Reg.f.p = parity(x);            // Parity flag
-   state->Reg.f.c = 0;                    // Carry flag (Reset to zero)
-                                          // Documentation doesn't include this flag,
-                                          // but I'm adding it because all the rest of the math function set this flag.
-   state->Reg.f.a = 0;                    // Auxiliary Carry flag
+   state->Reg.f.z = (x == 0             ? SET : RESET); // Zero flag
+   state->Reg.f.s = ((x & 0x80) == 0x80 ? SET : RESET); // Sign flag
+   state->Reg.f.p = parity(x);                          // Parity flag
+   state->Reg.f.c = RESET;                              // Carry flag (Reset to zero)
+                                                        // Documentation doesn't include this flag,
+                                                        // but I'm adding it because all the rest of the math function set this flag.
+   state->Reg.f.a = RESET;                              // Auxiliary Carry flag
 }
 // XRA Logical Exlusive-Or Register or Memory With Accumulator (Zero Accumulator) (pg 19)
 //
@@ -258,11 +346,11 @@ void XRA(State8080* state, uint8_t value)
    state->Reg.a = x;
 
    // Condition bits
-   state->Reg.f.z = (x == 0);             // Zero flag
-   state->Reg.f.s = ((x & 0x80) == 0x80); // Sign flag
-   state->Reg.f.p = parity(x);            // Parity flag
-   state->Reg.f.c = 0;                    // Carry flag
-   state->Reg.f.a = 0;                    // Auxiliary Carry flag
+   state->Reg.f.z = (x == 0             ? SET : RESET); // Zero flag
+   state->Reg.f.s = ((x & 0x80) == 0x80 ? SET : RESET); // Sign flag
+   state->Reg.f.p = parity(x);                          // Parity flag
+   state->Reg.f.c = RESET;                              // Carry flag (Reset to zero)
+   state->Reg.f.a = RESET;                              // Auxiliary Carry flag
 }
 // ORA Logical Or Register or Memory With Accumulator (pg 20)
 //
@@ -285,12 +373,12 @@ void ORA(State8080* state, uint8_t value)
    state->Reg.a = x;
 
    // Condition bits
-   state->Reg.f.z = (x == 0);             // Zero flag
-   state->Reg.f.s = ((x & 0x80) == 0x80); // Sign flag
-   state->Reg.f.p = parity(x);            // Parity flag
-   state->Reg.f.c = 0;                    // Carry flag
-   state->Reg.f.a = 0;                    // Auxiliary Carry flag
-                                          // (AC ncluded to match others)
+   state->Reg.f.z = (x == 0             ? SET : RESET); // Zero flag
+   state->Reg.f.s = ((x & 0x80) == 0x80 ? SET : RESET); // Sign flag
+   state->Reg.f.p = parity(x);                          // Parity flag
+   state->Reg.f.c = RESET;                              // Carry flag (Reset to zero)
+   state->Reg.f.a = RESET;                              // Auxiliary Carry flag
+                                                        // (AC ncluded to match others)
 }
 // CMP Compare Register or Memory With Accumulator (pg 20)
 //
@@ -315,27 +403,30 @@ void ORA(State8080* state, uint8_t value)
 void CMP(State8080* state, uint8_t value)
 {
    // Perform pseudo operation
-   uint16_t x = (uint16_t)state->Reg.a + (uint16_t)(~value + 1);
+   uint16_t answer = (uint16_t)state->Reg.a + (uint16_t)(~value + 1);
 
-   // Nothing stored int Accumulator
+   // Compute carry out of bottom four bits
+   uint8_t x = (state->Reg.a & 0x0f) + ((~value + 1) & 0x0f);
+
+   // Nothing stored in Accumulator
 
    // Condition bits
-   state->Reg.f.z = ((x & 0xff) == 0x00);    // Zero flag
-   state->Reg.f.s = ((x & 0x80) == 0x80);    // Sign flag
-   state->Reg.f.p = parity(x & 0xff);        // Parity flag
-   state->Reg.f.c = ((x & 0x100) == 0x100);  // Carry flag
-   state->Reg.f.a = ((((state->Reg.a & 0xf) + ((~value + 1) & 0xf)) & 0x10) == 0x10); // Auxiliary Carry flag
+   state->Reg.f.z = ((answer & 0xff) == 0x00   ? SET : RESET); // Zero flag
+   state->Reg.f.s = ((answer & 0x80) == 0x80   ? SET : RESET); // Sign flag
+   state->Reg.f.p = parity(answer & 0xff);                     // Parity flag
+   state->Reg.f.c = ((answer & 0x100) == 0x100 ? SET : RESET); // Carry flag
+   state->Reg.f.a = ((x & 0x10) == 0x10        ? SET : RESET); // Auxiliary Carry flag
 }
 void(*math[])(State8080* state, uint8_t reg) = { ADD, ADC, SUB, SBB, ANA, XRA, ORA, CMP };
 
-bool  Z(State8080* state) { return state->Reg.f.z == 1; } // Zero
-bool NZ(State8080* state) { return !Z(state); }           // Not Zero
-bool  C(State8080* state) { return state->Reg.f.c == 1; } // Carry
-bool NC(State8080* state) { return !C(state); }           // Not Carry
-bool PE(State8080* state) { return state->Reg.f.p == 1; } // Parity Even
-bool PO(State8080* state) { return !PE(state); }          // Parity Odd
-bool  M(State8080* state) { return state->Reg.f.s == 1; } // Minus
-bool  P(State8080* state) { return !M(state); }           // Plus
+bool  Z(State8080* state) { return state->Reg.f.z == SET; } // Zero
+bool NZ(State8080* state) { return !Z(state); }             // Not Zero
+bool  C(State8080* state) { return state->Reg.f.c == SET; } // Carry
+bool NC(State8080* state) { return !C(state); }             // Not Carry
+bool PE(State8080* state) { return state->Reg.f.p == SET; } // Parity Even
+bool PO(State8080* state) { return !PE(state); }            // Parity Odd
+bool  M(State8080* state) { return state->Reg.f.s == SET; } // Minus
+bool  P(State8080* state) { return !M(state); }             // Plus
 
 bool(*tests[])(State8080* state) = { NZ, Z, NC, C, PO, PE, P, M };
 
@@ -461,7 +552,7 @@ void DAD(State8080* state, uint32_t rp)
    state->Reg.l = (res & 0x00ff) >> 0;
 
    // Condition flags
-   state->Reg.f.c = ((res & 0x10000) == 0x10000); // Carry flag
+   state->Reg.f.c = ((res & 0x10000) == 0x10000 ? SET : RESET); // Carry flag
 }
 
 // INX Increment Register Pair (pg 24)
@@ -533,10 +624,10 @@ void DCX(State8080* state, uint8_t &high, uint8_t &low)
 //
 // Condition bits affected:
 //    None
-void LXI(State8080* state, uint8_t &high, uint8_t &low)
+void LXI(State8080* state, uint8_t &first, uint8_t &second)
 {
-   high = state->immediate(1);
-   low = state->immediate(2);
+   first = state->immediate(2);
+   second = state->immediate(1);
 }
 
 // CALL Call (pg 34)

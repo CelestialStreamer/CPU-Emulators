@@ -8,9 +8,9 @@ uint8_t parity(uint8_t v)
    // From manual Parity Bit
    // "The Parity bit is set to 1 for even parity, and is reset to 0 for odd parity."
    if (std::bitset<8>(v).count() % 2 == 0) // If even parity
-      return 1;
+      return EVEN;
    else
-      return 0;
+      return ODD;
 }
 
 int State8080:: Disassemble8080Op()

@@ -1,7 +1,14 @@
 #pragma once
-
+#include "IO.h"
 #include <cstdint> // uint8_t, uint16_t, uint32_t
-//#include <bitset>
+
+#define SET 1
+#define RESET 0
+
+// From manual Parity Bit
+// "The Parity bit is set to 1 for even parity, and is reset to 0 for odd parity."
+#define EVEN SET
+#define ODD RESET
 
 uint8_t parity(uint8_t v);
 
@@ -18,15 +25,12 @@ public:
          uint8_t a; // Auxiliary Carry   Set to 1 if carry out of bit 3
          uint8_t z; // Zero              Set to 1 if zero
          uint8_t s; // Sign              Set to 1 if negative (bit 7)
-      }f = { 0, 0, 0, 0, 0 };
+      }f = { RESET, RESET, RESET, RESET, RESET };
       uint8_t b = 0, c = 0;
       uint8_t d = 0, e = 0;
       uint8_t h = 0, l = 0;
       uint16_t pc = 0, sp = 0;
    } Reg;
-
-   uint8_t (*in)(uint8_t port);
-   void (*out)(uint8_t port, uint8_t value);
 
    uint8_t memory[0xffff] = {};
 
@@ -56,8 +60,9 @@ public:
    void generateInterrupt(uint8_t opcode);
 
 private:
-   bool interrupt_enabled;  // Are we ready to take interrupts?
-   bool interruptRequested; // Is there an interrupt now?
-   unsigned char interruptOpcode;
+   IO io;
+   bool interrupt_enabled = false;  // Are we ready to take interrupts?
+   bool interruptRequested = false; // Is there an interrupt now?
+   unsigned char interruptOpcode = 0;
    bool stopped = false;
 };
