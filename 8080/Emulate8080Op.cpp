@@ -87,6 +87,7 @@ void State8080::Emulate8080Op()
    }
    case 0x27: // 0x27   DAA         1     Z S P CY AC    special
    {
+      // 4 cycles
       DAA(this);
       Reg.pc = Reg.pc + 1;
       break;
@@ -272,10 +273,12 @@ void State8080::Emulate8080Op()
    case 0xBE: // 0xbe   CMP M       1     Z S P CY AC    A - (HL)
    case 0xBF: // 0xbf   CMP A       1     Z S P CY AC    A - A
    {
+      // 4 cycles
+      
       // Get which math operation is performed
       uint8_t op = CODE_1;
 
-      // Get which register the  operation will be performed on
+      // Get which register the operation will be performed on
       uint8_t reg = CODE_2;
 
       // Using function pointers, perform the operation
@@ -580,7 +583,6 @@ void State8080::Emulate8080Op()
    case 0x3E: // 0x3e   MVI A D8    2                    A <- byte 2
    {
       // 7 cycles
-      //getRegister(CODE_1) = opcode[1];
       getRegister(CODE_1) = immediate(1);
       Reg.pc = Reg.pc + 2;
       break;
@@ -595,6 +597,7 @@ void State8080::Emulate8080Op()
    case 0xF6: // 0xf6   ORI D8      2     Z S P CY AC    A <- A | data
    case 0xFE: // 0xfe   CPI D8      2     Z S P CY AC    A - data
    {
+      // 7 cycles
       uint8_t op = CODE_1;
       math[op](this, immediate());
 
@@ -673,7 +676,6 @@ void State8080::Emulate8080Op()
    case 0xCD: // 0xcd   CALL adr    3                    (SP-1) <- pc.hi; (SP-2) <- pc.lo; SP <- SP + 2; pc = adr
    {
 #ifdef FOR_CPUDIAG
-      //if (5 == ((opcode[2] << 8) | opcode[1]))
       if (5 == address())
       {
          if (Reg.c == 9)
@@ -704,6 +706,7 @@ void State8080::Emulate8080Op()
    case 0xEC: // 0xec   CPE adr     3                    if PE CALL adr
    case 0xE4: // 0xe4   CPO adr     3                    if PO CALL adr
    {
+      // 11/17 cycles
       if (tests[CODE_1](this))
          CALL(this, address());
       else
@@ -727,6 +730,7 @@ void State8080::Emulate8080Op()
    case 0xE8: // 0xe8   RPE         1                    if PE RET
    case 0xE0: // 0xe0   RPO         1                    if PO RET
    {
+      // 5/11 cycles
       if (tests[CODE_1](this))
          RET(this);
       else
