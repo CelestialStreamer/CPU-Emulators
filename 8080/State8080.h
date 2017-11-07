@@ -20,11 +20,11 @@ public:
       struct ConditionCodes {
          // 7 6 5 4 3 2 1 0
          // S Z 0 A 0 P 1 C
-         uint8_t c; // Carry             Set to 1 if carry out of bit 7
-         uint8_t p; // Parity            Set to 1 if even parity
-         uint8_t a; // Auxiliary Carry   Set to 1 if carry out of bit 3
-         uint8_t z; // Zero              Set to 1 if zero
-         uint8_t s; // Sign              Set to 1 if negative (bit 7)
+         uint8_t c; // Carry
+         uint8_t p; // Parity
+         uint8_t a; // Auxiliary Carry
+         uint8_t z; // Zero
+         uint8_t s; // Sign
       }f = { RESET, RESET, RESET, RESET, RESET };
       uint8_t b = 0, c = 0;
       uint8_t d = 0, e = 0;
@@ -35,7 +35,7 @@ public:
    uint8_t memory[0xffff] = {};
 
    void Emulate8080Op();
-   int Disassemble8080Op();
+   int  Disassemble8080Op();
    void display();
 
    uint8_t immediate(uint8_t byte = 1) { return memory[Reg.pc + byte]; }
