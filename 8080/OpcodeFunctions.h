@@ -33,7 +33,7 @@ void INR(State8080* state, uint8_t reg)
    // Condition bits
    state->Reg.f.z = (x == 0 ? SET : RESET);                                // Zero flag
    state->Reg.f.s = ((x & 0x80) == 0x80 ? SET : RESET);                    // Sign flag
-   state->Reg.f.p = parity(x);                               // Parity flag
+   state->Reg.f.p = parity(x);                                             // Parity flag
    state->Reg.f.a = ((((value & 0x0f) + 1) & 0x10) == 0x10 ? SET : RESET); // Auxiliary Carry flag
 }
 
@@ -274,7 +274,7 @@ void SUB(State8080* state, uint8_t value)
    state->Reg.f.s = ((answer & 0x80) == 0x80   ? SET : RESET); // Sign   flag
    state->Reg.f.p = parity(answer & 0xff);                     // Parity flag
    state->Reg.f.c = ((answer & 0x100) == 0x100 ? SET : RESET); // Carry  flag
-   state->Reg.f.a = ((carry & 0x10) == 0x10        ? SET : RESET); // Auxiliary Carry flag
+   state->Reg.f.a = ((carry & 0x10) == 0x10    ? SET : RESET); // Auxiliary Carry flag
 }
 // SBB Subtract Register or Memory From Accumulator With Borrow (pg 19)
 //
@@ -626,7 +626,7 @@ void DCX(State8080* state, uint8_t &high, uint8_t &low)
 //    None
 void LXI(State8080* state, uint8_t &first, uint8_t &second)
 {
-   first = state->immediate(2);
+   first  = state->immediate(2);
    second = state->immediate(1);
 }
 
@@ -703,10 +703,6 @@ void RST(State8080* state, uint16_t address)
 
    // Push address onto stack
    PUSH(state, (ret >> 8) & 0xff, (ret >> 0) & 0xff);
-
-   //state->memory[state->Reg.sp - 1] = (ret >> 8) & 0xff; // (SP-1) = PC.hi
-   //state->memory[state->Reg.sp - 2] = (ret >> 0) & 0xff; // (SP-2) = PC.lo
-   //state->Reg.sp = state->Reg.sp - 2;                    // SP = SP - 2
 
    // Jump to subroutine
    state->Reg.pc = address;
