@@ -116,6 +116,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="alu.cpp" />
     <ClCompile Include="IO.cpp" />
     <ClCompile Include="Memory.cpp" />
     <ClCompile Include="Source.cpp" />
