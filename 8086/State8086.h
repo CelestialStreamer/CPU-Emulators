@@ -3,7 +3,7 @@
 #include "Memory.h"
 
 #include <cassert> /* assert */
-#include <cstdint>
+#include <cstdint> /* uint8_t uint16_t */
 
 // Reserved memory space:
 // 0x00000 - 0x0007f (128 bytes)
@@ -15,7 +15,10 @@ public:
    State8086() {
       reset();
    }
-   ~State8086() {}
+   ~State8086() {
+      delete io;
+      delete mem;
+   }
 
    /// REGISTERS ///
    // The 8086 has eight 16-bit general purpose registers divided into two groups:
@@ -154,47 +157,6 @@ public:
 };
 
 
-template<> void State8086::Flags::set(uint8_t x) {
-   C = x & (1 << 0x0) ? 1 : 0;
-   P = x & (1 << 0x2) ? 1 : 0;
-   A = x & (1 << 0x4) ? 1 : 0;
-   Z = x & (1 << 0x6) ? 1 : 0;
-   S = x & (1 << 0x7) ? 1 : 0;
-}
-
-template<> void State8086::Flags::set(uint16_t x) {
-   C = x & (1 << 0x0) ? 1 : 0;
-   P = x & (1 << 0x2) ? 1 : 0;
-   A = x & (1 << 0x4) ? 1 : 0;
-   Z = x & (1 << 0x6) ? 1 : 0;
-   S = x & (1 << 0x7) ? 1 : 0;
-   T = x & (1 << 0x8) ? 1 : 0;
-   I = x & (1 << 0x9) ? 1 : 0;
-   D = x & (1 << 0xA) ? 1 : 0;
-   O = x & (1 << 0xB) ? 1 : 0;
-}
-
-template<> uint8_t State8086::Flags::get() {
-   return 2 // Can't tell if bit 1 is supposed to be set or not.
-      | ((uint16_t)C << 0x0)
-      | ((uint16_t)P << 0x2)
-      | ((uint16_t)A << 0x4)
-      | ((uint16_t)Z << 0x6)
-      | ((uint16_t)S << 0x7);
-}
-
-template<> uint16_t State8086::Flags::get() {
-   return 2 // Can't tell if bit 1 is supposed to be set or not.
-      | ((uint16_t)C << 0x0)
-      | ((uint16_t)P << 0x2)
-      | ((uint16_t)A << 0x4)
-      | ((uint16_t)Z << 0x6)
-      | ((uint16_t)S << 0x7)
-      | ((uint16_t)T << 0x8)
-      | ((uint16_t)I << 0x9)
-      | ((uint16_t)D << 0xA)
-      | ((uint16_t)O << 0xB);
-}
 
 template<typename T>
 T State8086::readrm(uint8_t rmval) {

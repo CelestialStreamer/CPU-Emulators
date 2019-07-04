@@ -1,6 +1,7 @@
 #include "State8086.h"
 #include "alu.h"
 #include <algorithm>
+#include <cassert>
 
 bool continueFindLoop(int repeatType, uint8_t ZF, uint16_t &counter) {
    if (repeatType == 0)
@@ -34,6 +35,7 @@ void State8086::interrupt(uint8_t vector) {
 
 template<>
 uint8_t& State8086::fetchreg(uint8_t rmval) {
+   assert(rmval < 8);
    switch (rmval) {
    case 0: return d_regs.a.l;
    case 1: return d_regs.c.l;
@@ -47,6 +49,7 @@ uint8_t& State8086::fetchreg(uint8_t rmval) {
 }
 template<>
 uint16_t& State8086::fetchreg(uint8_t rmval) {
+   assert(rmval < 8);
    switch (rmval) {
    case 0: return d_regs.a.x;
    case 1: return d_regs.c.x;
@@ -59,9 +62,68 @@ uint16_t& State8086::fetchreg(uint8_t rmval) {
    }
 }
 
+void State8086::modregrm() {
+
+}
+
+void State8086::push(uint16_t value) {
+
+}
+
+uint16_t State8086::pop() {
+   return 0;
+}
+
+int State8086::getea(uint8_t rmval) {
+   return 0;
+}
+
+
+template<> void State8086::Flags::set(uint8_t x) {
+   C = x & (1 << 0x0) ? 1 : 0;
+   P = x & (1 << 0x2) ? 1 : 0;
+   A = x & (1 << 0x4) ? 1 : 0;
+   Z = x & (1 << 0x6) ? 1 : 0;
+   S = x & (1 << 0x7) ? 1 : 0;
+}
+
+template<> void State8086::Flags::set(uint16_t x) {
+   C = x & (1 << 0x0) ? 1 : 0;
+   P = x & (1 << 0x2) ? 1 : 0;
+   A = x & (1 << 0x4) ? 1 : 0;
+   Z = x & (1 << 0x6) ? 1 : 0;
+   S = x & (1 << 0x7) ? 1 : 0;
+   T = x & (1 << 0x8) ? 1 : 0;
+   I = x & (1 << 0x9) ? 1 : 0;
+   D = x & (1 << 0xA) ? 1 : 0;
+   O = x & (1 << 0xB) ? 1 : 0;
+}
+
+template<> uint8_t State8086::Flags::get() {
+   return 2 // Can't tell if bit 1 is supposed to be set or not.
+      | ((uint16_t)C << 0x0)
+      | ((uint16_t)P << 0x2)
+      | ((uint16_t)A << 0x4)
+      | ((uint16_t)Z << 0x6)
+      | ((uint16_t)S << 0x7);
+}
+
+template<> uint16_t State8086::Flags::get() {
+   return 2 // Can't tell if bit 1 is supposed to be set or not.
+      | ((uint16_t)C << 0x0)
+      | ((uint16_t)P << 0x2)
+      | ((uint16_t)A << 0x4)
+      | ((uint16_t)Z << 0x6)
+      | ((uint16_t)S << 0x7)
+      | ((uint16_t)T << 0x8)
+      | ((uint16_t)I << 0x9)
+      | ((uint16_t)D << 0xA)
+      | ((uint16_t)O << 0xB);
+}
+
 void State8086::Emulate8086Op(int runtime)
 {
-   uint8_t opcode;
+   uint8_t opcode = 0;
    bool finished = false;
    int repeatType = 0;
    uint16_t saveIP;
@@ -74,8 +136,8 @@ void State8086::Emulate8086Op(int runtime)
 
       trap_toggle = flags.T;
 
-      if (!trap_toggle && flags.I)
-         ;
+      //if (!trap_toggle && flags.I)
+      //   ;
 
 
       if (halted) // Halt state
