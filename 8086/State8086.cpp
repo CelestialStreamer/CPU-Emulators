@@ -1,5 +1,4 @@
 #include "State8086.h"
-#include "alu.h"
 #include <algorithm>
 #include <cassert>
 
@@ -62,7 +61,7 @@ uint16_t& State8086::fetchreg(uint8_t rmval) {
    }
 }
 
-void State8086::modregrm() {
+void State8086::ModRegRm::operator()() {
 
 }
 
@@ -74,67 +73,25 @@ uint16_t State8086::pop() {
    return 0;
 }
 
-int State8086::getea(uint8_t rmval) {
+int State8086::getea() {
    return 0;
 }
 
-
-template<> void State8086::Flags::set(uint8_t x) {
-   C = x & (1 << 0x0) ? 1 : 0;
-   P = x & (1 << 0x2) ? 1 : 0;
-   A = x & (1 << 0x4) ? 1 : 0;
-   Z = x & (1 << 0x6) ? 1 : 0;
-   S = x & (1 << 0x7) ? 1 : 0;
-}
-
-template<> void State8086::Flags::set(uint16_t x) {
-   C = x & (1 << 0x0) ? 1 : 0;
-   P = x & (1 << 0x2) ? 1 : 0;
-   A = x & (1 << 0x4) ? 1 : 0;
-   Z = x & (1 << 0x6) ? 1 : 0;
-   S = x & (1 << 0x7) ? 1 : 0;
-   T = x & (1 << 0x8) ? 1 : 0;
-   I = x & (1 << 0x9) ? 1 : 0;
-   D = x & (1 << 0xA) ? 1 : 0;
-   O = x & (1 << 0xB) ? 1 : 0;
-}
-
-template<> uint8_t State8086::Flags::get() {
-   return 2 // Can't tell if bit 1 is supposed to be set or not.
-      | ((uint16_t)C << 0x0)
-      | ((uint16_t)P << 0x2)
-      | ((uint16_t)A << 0x4)
-      | ((uint16_t)Z << 0x6)
-      | ((uint16_t)S << 0x7);
-}
-
-template<> uint16_t State8086::Flags::get() {
-   return 2 // Can't tell if bit 1 is supposed to be set or not.
-      | ((uint16_t)C << 0x0)
-      | ((uint16_t)P << 0x2)
-      | ((uint16_t)A << 0x4)
-      | ((uint16_t)Z << 0x6)
-      | ((uint16_t)S << 0x7)
-      | ((uint16_t)T << 0x8)
-      | ((uint16_t)I << 0x9)
-      | ((uint16_t)D << 0xA)
-      | ((uint16_t)O << 0xB);
-}
-
-void State8086::Emulate8086Op(int runtime)
+void State8086::run(int runtime)
 {
-   uint8_t opcode = 0;
-   bool finished = false;
-   int repeatType = 0;
+   uint8_t opcode;
+   enum RepeatType {
+      None, Equal, NEqual
+   } repeatType;
    uint16_t saveIP;
-   bool prefix, trap_toggle = false;
+   bool trap_toggle = false;
 
 
    for (int count = 0; count < runtime;) {
       if (trap_toggle)
          interrupt(1);
 
-      trap_toggle = flags.T;
+      trap_toggle = alu.flags.T;
 
       //if (!trap_toggle && flags.I)
       //   ;
@@ -145,18 +102,16 @@ void State8086::Emulate8086Op(int runtime)
 
 
       saveIP = IP; // Used if repeat prefix is present (to go back and execute instruction again)
-      prefix = true; // Assume next byte is a prefix for an opcode
-      repeatType = 0; // 0 if no repeat, 1 if NOT EQUAL repeat, 2 if EQUAL
+      repeatType = None;
       // The default segment register is SS for the effective addresses
       // containing a BP index, DS for other effective addresses (pg 29).
       // An override prefix overrides this.
       // A call to modregrm() may override too.
       uint16_t segment = segRegs.DS;
-      bool segoverride = false; // 
 
-      do { // Grab next byte. If it's a prefix byte, process it and grab another byte and repeat, else move on
-         //opcode = mem->getmem<uint8_t>(segRegs.CS, IP);
-         incrementIP(1);
+      // Process all prefix byte(s) if there are any
+      for (bool prefix = true; prefix;) {
+         opcode = imm<uint8_t>(); // Grab the next instruction
          count++;
 
          switch (opcode) {
@@ -166,8 +121,7 @@ void State8086::Emulate8086Op(int runtime)
          case 0x2E: // SEG =CS
          case 0x36: // SEG =SS
          case 0x3E: // SEG =DS
-            segment = segRegs[(opcode >> 3) & 3];
-            segoverride = true;
+            segment = segRegs[(opcode & 0b0001'1000) >> 3];
             break;
 
             // REP = Repeat:
@@ -179,7 +133,7 @@ void State8086::Emulate8086Op(int runtime)
                     // F2 A7    REPNE CMPS m16,m16   Find matching words in ES:[(E)DI] and DS:[(E)SI]
                     // F2 AE    REPNE SCAS m8        Find AL, starting at ES:[(E)DI]
                     // F2 AF    REPNE SCAS m16       Find AX, starting at ES:[(E)DI]
-            repeatType = 1;
+            repeatType = NEqual;
             break;
          case 0xF3: // REP REPE
                     // This is a prefix byte
@@ -198,17 +152,17 @@ void State8086::Emulate8086Op(int runtime)
                     // F3 A7    REPE CMPS m16,m16    Find nonmatching words in ES:[(E)DI] and DS:[(E)SI]
                     // F3 AE    REPE SCAS m8         Find non-AL byte starting at ES:[(E)DI]
                     // F3 AF    REPE SCAS m16        Find non-AX word starting at ES:[(E)DI]
-            repeatType = 2;
+            repeatType = Equal;
             break;
 
-         default: // Normal opcode with no repeat or segment override
+         default: // Normal opcode
             prefix = false;
             break;
          }
 
-      } while (prefix);
+      };
 
-
+      // Process all non-prefix instructions
       switch (opcode) {
          //******       Data Transfer      ******//
          //****** MOV PUSH POP XCHG IN OUT ******//
@@ -220,26 +174,26 @@ void State8086::Emulate8086Op(int runtime)
       // 
       case 0x88: // MOV r/m8,r8        move r8 to r/m8 (pg 316)
       {
-         modregrm(); // fetch the ModR/M byte
-         writerm<uint8_t>(rm, fetchreg<uint8_t>(reg));
+         modregrm(); // fetch [mod reg r/m] byte
+         writerm<uint8_t>(fetchreg<uint8_t>(modregrm.reg));
          break;
       }
       case 0x89: // MOV r/m16,r16      move r16 to r/m16 (pg 316)
       {
-         modregrm();
-         writerm<uint8_t>(rm, (uint8_t)fetchreg<uint16_t>(reg));
+         modregrm(); // fetch [mod reg r/m] byte
+         writerm<uint8_t>((uint8_t)fetchreg<uint16_t>(modregrm.reg));
          break;
       }
       case 0x8A: // MOV r8,r/m8        move r/m8 to r8 (pg 316)
       {
-         modregrm();
-         fetchreg<uint8_t>(reg) = readrm<uint8_t>(rm);
+         modregrm(); // fetch [mod reg r/m] byte
+         fetchreg<uint8_t>(modregrm.reg) = readrm<uint8_t>();
          break;
       }
       case 0x8B: // MOV r16,r/m16      move r/m16 to r16 (pg 316)
       {
-         modregrm();
-         fetchreg<uint16_t>(reg) = readrm<uint16_t>(rm);
+         modregrm(); // fetch [mod reg r/m] byte
+         fetchreg<uint16_t>(modregrm.reg) = readrm<uint16_t>();
          break;
       }
       // Immediate to register/memory
@@ -248,18 +202,18 @@ void State8086::Emulate8086Op(int runtime)
                  // /0 MOV r/m8,imm8   move imm8 to r/m8 (pg 316)
                  // /1-7 -unused-
       {
-         modregrm();
-         writerm<uint8_t>(rm, mem->getmem<uint8_t>(segRegs.CS, IP));
-         incrementIP(1);
+         modregrm(); // fetch [mod reg r/m] byte
+         assert(modregrm.reg == 0); // Only support MOV operation
+         writerm<uint8_t>(imm<uint8_t>());
          break;
       }
       case 0xC7: // Move group
                  // /0 MOV r/m16,imm16 move imm16 to r/m16 (pg 316)
                  // /1-7 -unused-
       {
-         modregrm();
-         writerm<uint16_t>(rm, mem->getmem<uint16_t>(segRegs.CS, IP));
-         incrementIP(2);
+         modregrm(); // fetch [mod reg r/m] byte
+         assert(modregrm.reg == 0); // Only support MOV operation
+         writerm<uint16_t>(imm<uint16_t>());
          break;
       }
       // Immediate to register
@@ -272,12 +226,6 @@ void State8086::Emulate8086Op(int runtime)
       case 0xB5: // MOV CH             move imm8 to r8 (pg 316)
       case 0xB6: // MOV DH             move imm8 to r8 (pg 316)
       case 0xB7: // MOV BH             move imm8 to r8 (pg 316)
-      { // fall through for cases 0xB0-0xB7
-         reg = opcode & 7; // reg in lower 3 bits
-         fetchreg<uint8_t>(reg) = mem->getmem<uint8_t>(segRegs.CS, IP);
-         incrementIP(1);
-         break;
-      }
       case 0xB8: // MOV AX             move imm16 to r16 (pg 316)
       case 0xB9: // MOV CX             move imm16 to r16 (pg 316)
       case 0xBA: // MOV DX             move imm16 to r16 (pg 316)
@@ -286,54 +234,55 @@ void State8086::Emulate8086Op(int runtime)
       case 0xBD: // MOV BP             move imm16 to r16 (pg 316)
       case 0xBE: // MOV SI             move imm16 to r16 (pg 316)
       case 0xBF: // MOV DI             move imm16 to r16 (pg 316)
-      { // fall through for cases 0xB8-0xBF
-         reg = opcode & 7; // reg in lower 3 bits
-         fetchreg<uint16_t>(reg) = mem->getmem<uint16_t>(segRegs.CS, IP);
-         incrementIP(2);
+      {
+         fetchreg<uint8_t>(
+            opcode & 0b0111 // reg in lower 3 bits
+            ) = imm<uint8_t>();
+         break;
+      }
+      {
+         fetchreg<uint16_t>(
+            opcode & 0b0111 // reg in lower 3 bits
+            ) = imm<uint16_t>();
          break;
       }
       // Memory to accumulator
       // [1010000 w] [addr-lo] [addr-hi]
       case 0xA0: // MOV AL,moffs8      move byte at (seg:offset) to AL (pg 316)
       {
-         // I don't know what segment is being used here
-         d_regs.a.l = mem->getmem<uint8_t>(segment, mem->getmem<uint16_t>(segRegs.CS, IP));
-         incrementIP(2);
+         d_regs.a.l = mem->getmem<uint8_t>(segment, imm<uint16_t>());
          break;
       }
       case 0xA1: // MOV AX,moffs16     move word at (seg:offset) to AX (pg 316)
       {
-         d_regs.a.x = mem->getmem<uint16_t>(segment, mem->getmem<uint16_t>(segRegs.CS, IP));
-         incrementIP(2);
+         d_regs.a.x = mem->getmem<uint16_t>(segment, imm<uint16_t>());
          break;
       }
       // Accumulator to memory
       // [1010001 w] [addr-lo] [addr-hi]
       case 0xA2: // MOV moffs8,AL      move AL to (seg:offset) (pg 316)
       {
-         mem->putmem<uint8_t>(segment, mem->getmem<uint16_t>(segRegs.CS, IP), d_regs.a.l);
-         incrementIP(2);
+         mem->putmem<uint8_t>(segment, imm<uint16_t>(), d_regs.a.l);
          break;
       }
       case 0xA3: // MOV moffs16,AX     move AX to (seg:offset) (pg 316)
       {
-         mem->putmem<uint16_t>(segment, mem->getmem<uint16_t>(segRegs.CS, IP), d_regs.a.x);
-         incrementIP(2);
+         mem->putmem<uint16_t>(segment, imm<uint16_t>(), d_regs.a.x);
          break;
       }
       // Register/memory to segment register
       // [10001110] [mod 0 SR r/m] [(DISP-LO)] [(DISP-HI)]
       case 0x8E: // MOV Sreg,r/m16     move r/m16 to segment register (pg 316)
       {
-         modregrm();
-         segRegs[reg] = readrm<uint16_t>(rm);
+         modregrm(); // fetch [mod reg r/m] byte
+         segRegs[modregrm.reg] = readrm<uint16_t>();
          break;
       }
       // Segment register to register/memory
       case 0x8C: // MOV r/m16,Sreg     move segment register to r/m16 (pg 316)
       {
-         modregrm();
-         writerm<uint16_t>(rm, segRegs[reg]);
+         modregrm(); // fetch [mod reg r/m] byte
+         writerm<uint16_t>(segRegs[modregrm.reg]);
          break;
       }
 
@@ -350,8 +299,9 @@ void State8086::Emulate8086Op(int runtime)
       case 0x56: // PUSH SI            push SI (page 415)
       case 0x57: // PUSH DI            push DI (page 415)
       {
-         reg = opcode & 7;
-         push(fetchreg<uint16_t>(reg));
+         push(fetchreg<uint16_t>(
+            opcode & 0b0111 // reg in lower 3 bits
+            ));
          break;
       }
       // Segment register
@@ -361,8 +311,9 @@ void State8086::Emulate8086Op(int runtime)
       case 0x16: // PUSH SS            push SS (pg 415)
       case 0x1E: // PUSH DS            push DS (pg 415)
       {
-         reg = (opcode >> 3) & 3;
-         push(segRegs[reg]);
+         push(segRegs[
+            (opcode & 0b0001'1000) >> 3 // encoded segment register
+         ]);
          break;
       }
 
@@ -372,8 +323,9 @@ void State8086::Emulate8086Op(int runtime)
       // [10001111] [mod 000 r/m] [(DISP-LO)] [(DISP-HI)]
       case 0x8F: // /0 POP m16            pop top of stack into m16; increment stack pointer (pg 380)
       {
-         modregrm();
-         writerm<uint16_t>(rm, pop());
+         modregrm(); // fetch [mod reg r/m] byte
+         assert(modregrm.reg == 0); // Only support POP operation (ISA pg 380)
+         writerm<uint16_t>(pop());
          break;
       }
       // Register
@@ -387,8 +339,7 @@ void State8086::Emulate8086Op(int runtime)
       case 0x5E: // POP SI             pop top of stack into SI; increment stack pointer (pg 380)
       case 0x5F: // POP DI             pop top of stack into DI; increment stack pointer (pg 380)
       {
-         reg = opcode & 7;
-         fetchreg<uint16_t>(reg) = pop();
+         fetchreg<uint16_t>(opcode & 0b0111) = pop();
          break;
       }
       // Segment register
@@ -398,9 +349,7 @@ void State8086::Emulate8086Op(int runtime)
       case 0x17: // POP SS             pop top of stack into SS; increment stack pointer (pg 380)
       case 0x1F: // POP DS             pop top of stack into DS; increment stack pointer (pg 380)
       {
-         reg = (opcode >> 3) & 3;
-         segRegs[reg] = pop();
-
+         segRegs[(opcode & 0b0001'1000) >> 3] = pop();
          break;
       }
 
@@ -410,22 +359,20 @@ void State8086::Emulate8086Op(int runtime)
       // [1000011 w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)]
       case 0x86: // XCHG r/m8,r8       exchange r8 (byte register) with byte from r/m8 (pg 492)
       {
-         modregrm();
-
-         uint8_t temp = fetchreg<uint8_t>(reg);
-         fetchreg<uint8_t>(reg) = readrm<uint8_t>(rm);
-         writerm<uint8_t>(rm, temp);
-
+         modregrm(); // fetch [mod reg r/m] byte
+         // swap
+         uint8_t temp = fetchreg<uint8_t>(modregrm.reg);
+         fetchreg<uint8_t>(modregrm.reg) = readrm<uint8_t>();
+         writerm<uint8_t>(temp);
          break;
       }
       case 0x87: // XCHG r/m16,r16     exchange r16 with word from r/m16 (pg 492)
       {
-         modregrm();
-
-         uint16_t temp = fetchreg<uint16_t>(reg);
-         fetchreg<uint16_t>(reg) = readrm<uint16_t>(rm);
-         writerm<uint16_t>(rm, temp);
-
+         modregrm(); // fetch [mod reg r/m] byte
+         // swap
+         uint16_t temp = fetchreg<uint16_t>(modregrm.reg);
+         fetchreg<uint16_t>(modregrm.reg) = readrm<uint16_t>();
+         writerm<uint16_t>(temp);
          break;
       }
       // Register with accumulator
@@ -438,11 +385,15 @@ void State8086::Emulate8086Op(int runtime)
       case 0x95: // XCHG BP            exchange BP with AX (pg 492)
       case 0x96: // XCHG SI            exchange SI with AX (pg 492)
       case 0x97: // XCHG DI            exchange DI with AX (pg 492)
-      { // fall through for case 0x90-0x97
-         reg = opcode & 7; // reg in lower 3 bits
 
-         std::swap(d_regs.a.x, fetchreg<uint16_t>(reg));
-
+      {
+         // Alias for XCHG AX,AX. This has no effect
+         break;
+      }
+      {
+         std::swap(d_regs.a.x, fetchreg<uint16_t>(
+            opcode & 0b0111 // reg in lower 3 bits
+            ));
          break;
       }
 
@@ -452,14 +403,12 @@ void State8086::Emulate8086Op(int runtime)
       // [1110010 w] [DATA-8]
       case 0xE4: // IN AL,imm8         input byte from imm8 I/O port address into AL (pg 241)
       {
-         d_regs.a.l = io->read<uint8_t>(mem->getmem<uint8_t>(segRegs.CS, IP));
-         incrementIP(1);
+         d_regs.a.l = io->read<uint8_t>(imm<uint8_t>());
          break;
       }
       case 0xE5: // IN AX,imm8         input *word from imm8 I/O port address into AX (pg 241) *change to match pattern of OUT (pg 345)
       {
-         d_regs.a.x = io->read<uint16_t>(mem->getmem<uint8_t>(segRegs.CS, IP));
-         incrementIP(1);
+         d_regs.a.x = io->read<uint16_t>(imm<uint8_t>());
          break;
       }
       // Variable port
@@ -481,14 +430,12 @@ void State8086::Emulate8086Op(int runtime)
       // [1110011 w] [DATA-8]
       case 0xE6: // OUT imm8,AL        output byte in AL to I/O port address imm8 (pg 345)
       {
-         io->write<uint8_t>(mem->getmem<uint8_t>(segRegs.CS, IP), d_regs.a.l);
-         incrementIP(1);
+         io->write<uint8_t>(imm<uint8_t>(), d_regs.a.l);
          break;
       }
       case 0xE7: // OUT imm8,AX        output word in AX to I/O port address imm8 (pg 345)
       {
-         io->write<uint16_t>(mem->getmem<uint8_t>(segRegs.CS, IP), d_regs.a.x);
-         incrementIP(1);
+         io->write<uint16_t>(imm<uint8_t>(), d_regs.a.x);
          break;
       }
       // Variable port
@@ -514,18 +461,18 @@ void State8086::Emulate8086Op(int runtime)
       // [10001101] [mod reg r/m] [(DISP-LO)] [(DISP-HI)]
       case 0x8D: // LEA r16,m          store effective address for m in register r16 (pg 289)
       {
-         modregrm();
+         modregrm(); // fetch [mod reg r/m] byte
          //putreg16(reg, getea(rm)); // TODO: other guy used "ea - segbase(useseg)" instead of just "ea"
-         fetchreg<uint16_t>(reg) = getea(rm);
+         fetchreg<uint16_t>(modregrm.reg) = getea();
          break;
       }
       // LES = Load pointer to ES:
       // [11000100] [mod reg r/m] [(DISP-LO)] [(DISP-HI)]
       case 0xC4: // LES r16,m16:16     load ES:r16 with far pointer from memory (pg 286)
       {
-         modregrm();
-         int ea = getea(rm);
-         fetchreg<uint16_t>(reg) = mem->getmem<uint16_t>(ea);
+         modregrm(); // fetch [mod reg r/m] byte
+         int ea = getea();
+         fetchreg<uint16_t>(modregrm.reg) = mem->getmem<uint16_t>(ea);
          segRegs.ES = mem->getmem<uint16_t>(ea + 2);
          break;
       }
@@ -533,9 +480,9 @@ void State8086::Emulate8086Op(int runtime)
       // [11000101] [mod reg r/m] [(DISP-LO)] [(DISP-HI)]
       case 0xC5: // LDS r16,m16:16     load DS:r16 with far pointer from memory (pg 286)
       {
-         modregrm();
-         int ea = getea(rm);
-         fetchreg<uint16_t>(reg) = mem->getmem<uint16_t>(ea);
+         modregrm(); // fetch [mod reg r/m] byte
+         int ea = getea();
+         fetchreg<uint16_t>(modregrm.reg) = mem->getmem<uint16_t>(ea);
          segRegs.DS = mem->getmem<uint16_t>(ea + 2);
          break;
       }
@@ -543,28 +490,28 @@ void State8086::Emulate8086Op(int runtime)
       // [10011100]
       case 0x9C: // PUSHF              push lower 16 bits of EFLAGS (pg 420)
       {
-         push(flags.get<uint16_t>());
+         push(alu.flags.get<uint16_t>());
          break;
       }
       // POPF = Pop flags:
       // [10011101]
       case 0x9D: // POPF               pop top of stack into lower 16 bits of EFLAGS (pg 386)
       {
-         flags.set<uint16_t>(pop());
+         alu.flags.set<uint16_t>(pop());
          break;
       }
       // SAHF = Store AH into flags:
       // [10011110]
       case 0x9E: // SAHF               loads SF,ZF,AF,PF, and CF from AH into EFLAGS register (pg 445)
       {
-         flags.set<uint8_t>(d_regs.a.h);
+         alu.flags.set<uint8_t>(d_regs.a.h);
          break;
       }
       // LAHF = Load AH with flags:
       // [10011111]
       case 0x9F: // LAHF               load: AH=EFLAGS(SF:ZF:0:AF:0:PF:1:CF) (pg 282)
       {
-         d_regs.a.h = flags.get<uint8_t>();
+         d_regs.a.h = alu.flags.get<uint8_t>();
          break;
       }
 
@@ -573,15 +520,15 @@ void State8086::Emulate8086Op(int runtime)
       //****** ADD ADC INC AA DAA SUB SBB DEC CMP AAS DAS MUL IMUL AAM DIV IDIV AAD CBW CWD ******//
       //******************************************************************************************//
 
-   // Reg/memory with register to either
-   // [000000 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] ADD = Add:
-   // [000010 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] OR  = Or:
-   // [000100 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] ADC = Add with carry:
-   // [000110 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] SBB = Subtract with borrow:
-   // [001000 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] AND = And:
-   // [001010 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] SUB = Subtract:
-   // [001100 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] XOR = Exclusive or:
-   // [001110 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] CMP = Compare:
+      // Reg/memory with register to either
+      // [000000 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] ADD = Add:
+      // [000010 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] OR  = Or:
+      // [000100 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] ADC = Add with carry:
+      // [000110 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] SBB = Subtract with borrow:
+      // [001000 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] AND = And:
+      // [001010 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] SUB = Subtract:
+      // [001100 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] XOR = Exclusive or:
+      // [001110 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] CMP = Compare:
       case 0x00: // ADD r/m8,r8        add r8 to r/m8 (pg 47)
       case 0x08: // OR  r/m8,r8        r/m8 OR r8 (pg 343)
       case 0x10: // ADC r/m8,r8        add with carry byte register to r/m8 (pg 45)
@@ -591,14 +538,15 @@ void State8086::Emulate8086Op(int runtime)
       case 0x30: // XOR r/m8,r8        r/m8 XOR r8 (pg 496)
       case 0x38: // CMP r/m8,r8        compare r8 with r/m8 (pg 91)
       {
-         auto op = (opcode >> 3) & 7;
+         modregrm(); // fetch [mod reg r/m] byte
+         uint8_t res = alu.arithm<uint8_t>(
+            (opcode & 0b0011'1000) >> 3,    // operation (bits 4-6)
+            readrm<uint8_t>(),              // operand 1
+            fetchreg<uint8_t>(modregrm.reg) // operand 2
+            );
 
-         modregrm();
-         uint8_t op1 = readrm<uint8_t>(rm);
-         uint8_t op2 = fetchreg<uint8_t>(reg);
-         uint8_t res = ALU::arithm<uint8_t>()[op](op1, op2, flags);
-
-         if (op < 7) writerm<uint8_t>(rm, res);
+         if (opcode != 0x38) // CMP does not save results, computes flags only
+            writerm<uint8_t>(res);
          break;
       }
 
@@ -611,14 +559,15 @@ void State8086::Emulate8086Op(int runtime)
       case 0x31: // XOR r/m16,r16      r/m16 XOR r16 (pg 496)
       case 0x39: // CMP r/m16,r16      compare r16 with r/m16 (pg 91)
       {
-         auto op = (opcode >> 3) & 7; // operation is bits 3-5
+         modregrm(); // fetch [mod reg r/m] byte
+         uint16_t res = alu.arithm<uint16_t>(
+            (opcode & 0b0011'1000) >> 3,     // operation (bits 4-6)
+            readrm<uint16_t>(),              // operand 1
+            fetchreg<uint16_t>(modregrm.reg) // operand 2
+            );
 
-         modregrm();
-         uint16_t op1 = readrm<uint16_t>(rm);
-         uint16_t op2 = fetchreg<uint16_t>(reg);
-         uint16_t res = ALU::arithm<uint16_t>()[op](op1, op2, flags);
-
-         if (op < 7) writerm<uint16_t>(rm, res);
+         if (opcode != 0x39) // CMP does not save results, computes flags only
+            writerm<uint16_t>(res);
          break;
       }
 
@@ -631,16 +580,15 @@ void State8086::Emulate8086Op(int runtime)
       case 0x32: // XOR r8,r/m8        r8 XOR r/m8 (pg 496)
       case 0x3A: // CMP r8,r/m8        compare r/m8 with r8 (pg 91)
       {
-         auto op = (opcode >> 3) & 7;
+         modregrm(); // fetch [mod reg r/m] byte
+         uint8_t res = alu.arithm<uint8_t>(
+            (opcode & 0b0011'1000) >> 3,     // operation (bits 4-6)
+            fetchreg<uint8_t>(modregrm.reg), // operand 1
+            readrm<uint8_t>()                // operand 2
+            );
 
-         modregrm();
-         uint8_t op1 = fetchreg<uint8_t>(reg);
-         uint8_t op2 = readrm<uint8_t>(rm);
-         uint8_t res = ALU::arithm<uint8_t>()[op](op1, op2, flags);
-
-         if (op < 7)
-            fetchreg<uint8_t>(reg) = res;
-
+         if (opcode != 0x3A) // CMP does not save results, computes flags only
+            fetchreg<uint8_t>(modregrm.reg) = res;
          break;
       }
 
@@ -653,15 +601,15 @@ void State8086::Emulate8086Op(int runtime)
       case 0x33: // XOR r16,r/m16      r16 XOR r/m16 (pg 496)
       case 0x3B: // CMP r16,r/m16      compare r/m16 with r16 (pg 91)
       {
-         auto op = (opcode >> 3) & 7;
+         modregrm(); // fetch [mod reg r/m] byte
+         uint16_t res = alu.arithm<uint16_t>(
+            (opcode & 0b0011'1000) >> 3,      // operation (bits 4-6)
+            fetchreg<uint16_t>(modregrm.reg), // operand 1
+            readrm<uint16_t>()                // operand 2
+            );
 
-         modregrm();
-         uint16_t op1 = fetchreg<uint16_t>(reg);
-         uint16_t op2 = readrm<uint16_t>(rm);
-         uint16_t res = ALU::arithm<uint16_t>()[op](op1, op2, flags);
-
-         if (op < 7)
-            fetchreg<uint16_t>(reg) = res;
+         if (opcode != 0x3B) // CMP does not save results, computes flags only
+            fetchreg<uint16_t>(modregrm.reg) = res;
          break;
       }
 
@@ -683,15 +631,14 @@ void State8086::Emulate8086Op(int runtime)
       case 0x34: // XOR AL,imm8        AL XOR imm8 (pg 496)
       case 0x3C: // CMP AL,imm8        compare imm8 with AL (pg 91)
       {
-         auto op = (opcode >> 3) & 7;
+         uint8_t res = alu.arithm<uint8_t>(
+            (opcode & 0b0011'1000) >> 3, // operation (bits 4-6)
+            d_regs.a.l,                  // operand 1
+            imm<uint8_t>()               // operand 2
+            );
 
-         uint8_t op1 = d_regs.a.l;
-         uint8_t op2 = mem->getmem<uint8_t>(segRegs.CS, IP); incrementIP(1);
-         uint8_t res = ALU::arithm<uint8_t>()[op](op1, op2, flags);
-
-         if (op < 7)
+         if (opcode != 0x3C) // CMP does not save results, computes flags only
             d_regs.a.l = res;
-
          break;
       }
 
@@ -704,13 +651,13 @@ void State8086::Emulate8086Op(int runtime)
       case 0x35: // XOR AX,imm16       AX XOR imm16 (pg 496)
       case 0x3D: // CMP AX,imm16       compare imm16 with AX (pg 91)
       {
-         auto op = (opcode >> 3) & 7;
+         uint16_t res = alu.arithm<uint16_t>(
+            (opcode & 0b0011'1000) >> 3, // operation (bits 4-6)
+            d_regs.a.x,                  // operand 1
+            imm<uint16_t>()              // operand 2
+            );
 
-         uint16_t op1 = d_regs.a.x;
-         uint16_t op2 = mem->getmem<uint16_t>(segRegs.CS, IP); incrementIP(2);
-         uint16_t res = ALU::arithm<uint16_t>()[op](op1, op2, flags);
-
-         if (op < 7)
+         if (opcode != 0x3D) // CMP does not save results, computes flags only
             d_regs.a.x = res;
          break;
       }
@@ -745,15 +692,16 @@ void State8086::Emulate8086Op(int runtime)
                  // /6
                  // /7 CMP r/m8,imm8
       {
-         modregrm();
+         modregrm(); // fetch [mod reg r/m] byte
+         //assert(reg != 1 && reg != 4 && reg != 6); // Look into this
+         uint8_t res = alu.arithm<uint8_t>(
+            modregrm.reg,      // operation (from REG field in [mod reg r/m] byte)
+            readrm<uint8_t>(), // operand 1
+            imm<uint8_t>()     // operand 2
+            );
 
-         uint8_t op1 = readrm<uint8_t>(rm);
-         uint8_t op2 = mem->getmem<uint8_t>(segRegs.CS, IP); incrementIP(1);
-
-         uint8_t res = ALU::arithm<uint8_t>()[reg](op1, op2, flags);
-
-         if (reg != 7) // compare does not write back
-            writerm<uint8_t>(rm, res);
+         if (modregrm.reg != 7) // CMP does not save results, computes flags only
+            writerm<uint8_t>(res);
          break;
       }
       case 0x81: // Immediate Group r/m16,imm16
@@ -777,22 +725,23 @@ void State8086::Emulate8086Op(int runtime)
                  // /6
                  // /7 CMP r/m16,imm8  compare imm8 with r/m16 (pg 91)
       {
-         modregrm();
+         modregrm(); // fetch [mod reg r/m] byte
 
-         uint16_t op1 = readrm<uint16_t>(rm);
          uint16_t op2;
          if (opcode == 0x81) {
-            op2 = mem->getmem<uint16_t>(segRegs.CS, IP);
-            incrementIP(2);
+            op2 = imm<uint16_t>();
          } else { // sign extend byte into word
-            op2 = (int16_t)(int8_t)mem->getmem<uint8_t>(segRegs.CS, IP);
-            incrementIP(1);
+            op2 = (int16_t)(int8_t)imm<uint8_t>();
          }
 
-         uint16_t res = ALU::arithm<uint16_t>()[reg](op1, op2, flags);
+         uint16_t res = alu.arithm<uint16_t>(
+            modregrm.reg,       // operation (from REG field in [mod reg r/m] byte)
+            readrm<uint16_t>(), // operand 1
+            op2                 // operand 2
+            );
 
-         if (reg != 7)
-            writerm<uint16_t>(rm, res);
+         if (modregrm.reg != 7) // CMP does not save results, computes flags only
+            writerm<uint16_t>(res);
          break;
       }
 
@@ -811,19 +760,19 @@ void State8086::Emulate8086Op(int runtime)
                  // /6 PUSH r/m16      push r/m16 (pg 415)
                  // /7 -unused-
       {
-         modregrm();
-         uint16_t rm16 = readrm<uint16_t>(rm);
-         auto ea = getea(rm); // far CALL/JUMP
-         auto C = flags.C; // INC/DEC
+         modregrm(); // fetch [mod reg r/m] byte
+         uint16_t rm16 = readrm<uint16_t>();
+         auto ea = getea(); // far CALL/JUMP
+         auto C = alu.flags.C; // INC/DEC
 
-         switch (reg) {
+         switch (modregrm.reg) {
          case 0:  // /0 INC  r/m16      increment r/m word by 1 (pg 243)
-            writerm<uint16_t>(rm, ALU::add<uint16_t>(rm16, 1, flags));
-            flags.C = C; // restore carry flag
+            writerm<uint16_t>(alu.add<uint16_t>(rm16, 1));
+            alu.flags.C = C; // restore carry flag
             break;
          case 1:  // /1 DEC  r/m16      decrement r/m16    by 1 (pg 112)
-            writerm<uint16_t>(rm, ALU::sub<uint16_t>(rm16, 1, flags));
-            flags.C = C; // restore carry flag
+            writerm<uint16_t>(alu.sub<uint16_t>(rm16, 1));
+            alu.flags.C = C; // restore carry flag
             break;
          case 2:  // /2 CALL r/m16      call near, absolute indirect, address given in r/m16  (pg 68)
             push(IP);
@@ -856,16 +805,17 @@ void State8086::Emulate8086Op(int runtime)
                  // /0 INC r/m8        increment r/m byte by 1 (pg 243)
                  // /1 DEC r/m8        decrement r/m8 by 1 (pg 112)
       {
-         modregrm();
+         modregrm(); // fetch [mod reg r/m] byte
 
-         auto C = flags.C; // save carry flag
+         auto C = alu.flags.C; // save carry flag
 
-         switch (reg) {
-         case 0: writerm<uint16_t>(rm, ALU::add<uint8_t>(readrm<uint8_t>(rm), 1, flags)); break;
-         case 1: writerm<uint8_t>(rm, ALU::sub<uint8_t>(readrm<uint8_t>(rm), 1, flags)); break;
+         switch (modregrm.reg) {
+         case 0: writerm<uint16_t>(alu.add<uint8_t>(readrm<uint8_t>(), 1)); break;
+         case 1: writerm<uint8_t>(alu.sub<uint8_t>(readrm<uint8_t>(), 1)); break;
+         default: assert(false); // unsupported operation
          }
 
-         flags.C = C; // restore carry flag
+         alu.flags.C = C; // restore carry flag
 
          break;
       }
@@ -879,25 +829,24 @@ void State8086::Emulate8086Op(int runtime)
       case 0x45: // INC BP             increment BP by 1 (pg 243)
       case 0x46: // INC SI             increment SI by 1 (pg 243)
       case 0x47: // INC DI             increment DI by 1 (pg 243)
-      {  // case 0x40-0x47 fall through
-         reg = opcode & 7;
-         auto C = flags.C; // save carry flag
-         fetchreg<uint16_t>(reg) = ALU::add<uint16_t>(fetchreg<uint16_t>(reg), 1, flags);
-         flags.C = C; // restore carry flag
+      {
+         uint16_t &_reg = fetchreg<uint16_t>(opcode & 0b0111);
+         _reg = alu.INC<uint16_t>(_reg);
+
          break;
       }
       // AAA = ASCII adjust for add:
       // [00110111]
       case 0x37: // AAA                ASCII adjust AL after addition (pg 41)
       {
-         if (((d_regs.a.l & 0xF) > 9) || (flags.A == 1)) {
+         if (((d_regs.a.l & 0xF) > 9) || (alu.flags.A == 1)) {
             d_regs.a.l += 6;
             d_regs.a.h += 1;
-            flags.A = 1;
-            flags.C = 1;
+            alu.flags.A = 1;
+            alu.flags.C = 1;
          } else {
-            flags.A = 0;
-            flags.C = 0;
+            alu.flags.A = 0;
+            alu.flags.C = 0;
          }
          d_regs.a.l &= 0xF;
          break;
@@ -906,23 +855,7 @@ void State8086::Emulate8086Op(int runtime)
       // [00100111]
       case 0x27: // DAA                Decimal adjust AL after addition (pg 109)
       {
-         if (((d_regs.a.l & 0xF) > 9) || (flags.A == 1)) {
-            uint16_t temp = (uint16_t)d_regs.a.l + 6;
-            d_regs.a.l = temp & 0xFF;
-            flags.C = (flags.C || (temp & 0xF0)) ? 1 : 0; // detect carry out of lower 4 bits, or old carry
-            flags.A = 1;
-         } else
-            flags.A = 0;
-
-         if (((d_regs.a.l & 0xF0) > 0x90) || (flags.C == 1)) {
-            d_regs.a.l += 0x60;
-            flags.C = 1;
-         } else
-            flags.C = 0;
-
-         //ALU::setFlags(d_regs.a.l, flags);
-         setFlags<uint8_t>(d_regs.a.l, flags); // TODO: put this in the right spot
-
+         d_regs.a.l = alu.DAA(d_regs.a.l);
          break;
       }
 
@@ -939,10 +872,8 @@ void State8086::Emulate8086Op(int runtime)
       case 0x4E: // DEC SI             decrement SI by 1 (pg 112)
       case 0x4F: // DEC DI             decrement DI by 1 (pg 112)
       {
-         reg = opcode & 7;
-         auto C = flags.C; // save carry flag
-         fetchreg<uint16_t>(reg) = ALU::sub<uint16_t>(fetchreg<uint16_t>(reg), 1, flags);
-         flags.C = C; // restore carry flag
+         uint16_t& reg = fetchreg<uint16_t>(opcode & 0b0111);
+         reg = alu.DEC<uint16_t>(reg);
          break;
       }
 
@@ -976,14 +907,14 @@ void State8086::Emulate8086Op(int runtime)
       // [00111111]
       case 0x3F: // AAS                ASCII adjust AL after subtraction (pg 44)
       {
-         if (((d_regs.a.l & 0xF) > 9) || (flags.A == 1)) {
+         if (((d_regs.a.l & 0xF) > 9) || (alu.flags.A == 1)) {
             d_regs.a.l -= 6;
             d_regs.a.h -= 1;
-            flags.A = 1;
-            flags.C = 1;
+            alu.flags.A = 1;
+            alu.flags.C = 1;
          } else {
-            flags.A = 0;
-            flags.C = 0;
+            alu.flags.A = 0;
+            alu.flags.C = 0;
          }
 
          d_regs.a.l &= 0x0F;
@@ -993,26 +924,25 @@ void State8086::Emulate8086Op(int runtime)
       // [00101111]
       case 0x2F: // DAS                Decimal adjust AL after subtraction (pg 111)
       {
-         if (((d_regs.a.l & 0xF) > 9) || (flags.A == 1)) {
+         if (((d_regs.a.l & 0xF) > 9) || (alu.flags.A == 1)) {
             uint16_t temp = (uint16_t)d_regs.a.l - 6;
             d_regs.a.l = temp & 0xFF;
-            flags.C = (flags.C || (temp & 0xFF00)) ? 1 : 0;
-            flags.A = 1;
+            alu.flags.C = (alu.flags.C || (temp & 0xFF00)) ? 1 : 0;
+            alu.flags.A = 1;
          } else
-            flags.A = 0;
+            alu.flags.A = 0;
 
-         if (((d_regs.a.l & 0xF0) > 0x90) || (flags.C == 1)) {
+         if (((d_regs.a.l & 0xF0) > 0x90) || (alu.flags.C == 1)) {
             d_regs.a.l -= 0x60;
-            flags.C = 1;
+            alu.flags.C = 1;
          } else
-            flags.C = 0;
+            alu.flags.C = 0;
       }
       // AAM = ASCII adjust for multiply
       // [11010100] [00001010]                       NOTE: Second byte selects number base. 0x8 for octal, 0xA for decimal, 0xC for base 12
       case 0xD4: // AAM                ASCII adjust AX after multiply (pg 43)
       {
-         uint8_t base = mem->getmem<uint8_t>(segRegs.CS, IP);
-         incrementIP(1);
+         uint8_t base = imm<uint8_t>();
 
          if (base == 0) // divide by 0 error
             break; // TODO: how to handle this? Do I care? No.
@@ -1021,8 +951,7 @@ void State8086::Emulate8086Op(int runtime)
          d_regs.a.h = temp / base;
          d_regs.a.l = temp % base;
 
-         //ALU::setFlags(d_regs.a.x, flag);
-         setFlags<uint16_t>(d_regs.a.x, flags);
+         alu.flags.set<uint16_t>(d_regs.a.x);
 
          break;
       }
@@ -1030,8 +959,7 @@ void State8086::Emulate8086Op(int runtime)
       // [11010101] [00001010]                       NOTE: Second byte selects number base. 0x8 for octal, 0xA for decimal, 0xC for base 12
       case 0xD5: // AAD                ASCII adjust AX before division (pg 42)
       {
-         uint8_t base = mem->getmem<uint8_t>(segRegs.CS, IP);
-         incrementIP(1);
+         uint8_t base = imm<uint8_t>();
 
          //if (base == 0) // base 0 is stupid
          //   break; // TODO: how to handle this? Do I care? No.
@@ -1039,8 +967,7 @@ void State8086::Emulate8086Op(int runtime)
          d_regs.a.l = (d_regs.a.l + (d_regs.a.h * base)) & 0xFF;
          d_regs.a.h = 0;
 
-         //ALU::setFlags(d_regs.a.x, flag);
-         setFlags<uint16_t>(d_regs.a.x, flags);
+         alu.flags.set<uint16_t>(d_regs.a.x);
 
          break;
       }
@@ -1048,20 +975,16 @@ void State8086::Emulate8086Op(int runtime)
       // [10011000]
       case 0x98: // CBW                AX <- sign-extended of AL (pg 79)
       {
-         if (d_regs.a.l & 0x80)
-            d_regs.a.h = 0xFF;
-         else
-            d_regs.a.h = 0;
+         if (d_regs.a.l & 0x80) d_regs.a.h = 0xFF;
+         else                   d_regs.a.h = 0;
          break;
       }
       // CWD = Convert word to double word:
       // [10011001]
       case 0x99: // CWD                DX:AX <- sign-extend of AX (pg 107)
       {
-         if (d_regs.a.x & 0x8000)
-            d_regs.d.x = 0xFFFF;
-         else
-            d_regs.d.x = 0;
+         if (d_regs.a.x & 0x8000) d_regs.d.x = 0xFFFF;
+         else                     d_regs.d.x = 0;
          break;
       }
 
@@ -1088,9 +1011,14 @@ void State8086::Emulate8086Op(int runtime)
                  // /6 -unused-
                  // /7 SAR r/m8,1      Signed divide* r/m8 by 2, once (pg 446)
       {
-         modregrm();
-         if (reg != 6)
-            writerm<uint8_t>(rm, ALU::rotate<uint8_t>()[reg](readrm<uint8_t>(rm), 1, flags));
+         modregrm(); // fetch [mod reg r/m] byte
+         assert(modregrm.reg != 6);
+         writerm<uint8_t>(
+            alu.rotate<uint8_t>(
+               modregrm.reg,
+               readrm<uint8_t>(),
+               1)
+            );
          break;
       }
       case 0xD1: // Shift Group 2^2 Ev,1
@@ -1103,9 +1031,13 @@ void State8086::Emulate8086Op(int runtime)
                  // /6 -unused-
                  // /7 SAR r/m16,1     Signed divide* r/m16 by 2, once (pg 446)
       {
-         modregrm();
-         if (reg != 6)
-            writerm<uint16_t>(rm, ALU::rotate<uint16_t>()[reg](readrm<uint16_t>(rm), 1, flags));
+         modregrm(); // fetch [mod reg r/m] byte
+         assert(modregrm.reg != 6);
+         writerm<uint16_t>(
+            alu.rotate<uint16_t>(
+               modregrm.reg,
+               readrm<uint16_t>(),
+               1));
          break;
       }
       case 0xD2: // Shift Group 2^2 Eb,CL
@@ -1118,9 +1050,13 @@ void State8086::Emulate8086Op(int runtime)
                  // /6 -unused-
                  // /7 SAR r/m8,CL     Signed divide* r/m8 by 2, CL times (pg 446)
       {
-         modregrm();
-         if (reg != 6)
-            writerm<uint8_t>(rm, ALU::rotate<uint8_t>()[reg](readrm<uint8_t>(rm), d_regs.c.l, flags));
+         modregrm(); // fetch [mod reg r/m] byte
+         assert(modregrm.reg != 6);
+         writerm<uint8_t>(
+            alu.rotate<uint8_t>(
+               modregrm.reg,
+               readrm<uint8_t>(),
+               d_regs.c.l));
          break;
       }
       case 0xD3: // Shift Group 2^2 Ev,CL
@@ -1133,9 +1069,13 @@ void State8086::Emulate8086Op(int runtime)
                  // /6 -unused-
                  // /7 SAR r/m16,CL    Signed divide* r/m16 by 2, CL times (pg 446)
       {
-         modregrm();
-         if (reg != 6)
-            writerm<uint16_t>(rm, ALU::rotate<uint16_t>()[reg](readrm<uint16_t>(rm), d_regs.c.l, flags));
+         modregrm(); // fetch [mod reg r/m] byte
+         assert(modregrm.reg != 6);
+         writerm<uint16_t>(
+            alu.rotate<uint16_t>(
+               modregrm.reg,
+               readrm<uint16_t>(),
+               d_regs.c.l));
          break;
       }
 
@@ -1145,34 +1085,30 @@ void State8086::Emulate8086Op(int runtime)
       // [1000 010 w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)]
       case 0x84: // TEST r/m8,r8       AND r8 with r/m8; set SF,ZF,PF according to result (pg 480)
       {
-         modregrm();
-         uint8_t op1 = fetchreg<uint8_t>(reg);
-         uint8_t op2 = readrm<uint8_t>(rm);
-         ALU::_and<uint8_t>(op1, op2, flags);
+         modregrm(); // fetch [mod reg r/m] byte
+         alu._and<uint8_t>(
+            fetchreg<uint8_t>(modregrm.reg),
+            readrm<uint8_t>());
          break;
       }
       case 0x85: // TEST r/m16,r16     AND r16 with r/m16; set SF,ZF,PF according to result (pg 480)
       {
-         modregrm();
-         uint16_t op1 = fetchreg<uint16_t>(reg);
-         uint16_t op2 = readrm<uint16_t>(rm);
-         ALU::_and<uint16_t>(op1, op2, flags);
+         modregrm(); // fetch [mod reg r/m] byte
+         alu._and<uint16_t>(
+            fetchreg<uint16_t>(modregrm.reg),
+            readrm<uint16_t>());
          break;
       }
       // Immediate data and accumulator
       // [1010100 w] [data] *[data if w=1] *this was not included in documentation, but I believe that it should be there.
       case 0xA8: // TEST AL,imm8       AND imm8 with AL; set SF,ZF,PF according to result (pg 480)
       {
-         uint8_t op1 = d_regs.a.l;
-         uint8_t op2 = mem->getmem<uint8_t>(segRegs.CS, IP); incrementIP(1);
-         ALU::_and<uint8_t>(op1, op2, flags);
+         alu._and<uint8_t>(d_regs.a.l, imm<uint8_t>());
          break;
       }
       case 0xA9: // TEST AX,imm16      AND imm16 with AX; set SF,ZF,PF according to result (pg 480)
       {
-         uint16_t op1 = d_regs.a.x;
-         uint16_t op2 = mem->getmem<uint16_t>(segRegs.CS, IP); incrementIP(2);
-         ALU::_and<uint16_t>(op1, op2, flags);
+         alu._and<uint16_t>(d_regs.a.x, imm<uint16_t>());
          break;
       }
 
@@ -1186,9 +1122,12 @@ void State8086::Emulate8086Op(int runtime)
       // [1010010 w]
       case 0xA4: // MOVS m8,m8         move byte at address DS:(E)SI to address ES:(E)DI (pg 329)
       {
-         mem->putmem<uint8_t>(segRegs.ES, pi_regs.DI, mem->getmem<uint8_t>(segRegs.DS, pi_regs.SI));
+         mem->putmem<uint8_t>(
+            segRegs.ES,
+            pi_regs.DI,
+            mem->getmem<uint8_t>(segRegs.DS, pi_regs.SI));
 
-         if (flags.D == 0) {
+         if (alu.flags.D == 0) {
             pi_regs.SI += 1;
             pi_regs.DI += 1;
          } else {
@@ -1196,16 +1135,19 @@ void State8086::Emulate8086Op(int runtime)
             pi_regs.DI -= 1;
          }
 
-         if (continueFindLoop(repeatType, flags.Z, d_regs.c.x))
+         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
             IP = saveIP;
 
          break;
       }
       case 0xA5: // MOVS m16,m16       move word at address DS:(E)SI to address ES:(E)DI (pg 329)
       {
-         mem->putmem<uint16_t>(segRegs.ES, pi_regs.DI, mem->getmem<uint16_t>(segRegs.DS, pi_regs.SI));
+         mem->putmem<uint16_t>(
+            segRegs.ES,
+            pi_regs.DI,
+            mem->getmem<uint16_t>(segRegs.DS, pi_regs.SI));
 
-         if (flags.D == 0) {
+         if (alu.flags.D == 0) {
             pi_regs.SI += 2;
             pi_regs.DI += 2;
          } else {
@@ -1213,7 +1155,7 @@ void State8086::Emulate8086Op(int runtime)
             pi_regs.DI -= 2;
          }
 
-         if (continueFindLoop(repeatType, flags.Z, d_regs.c.x))
+         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
             IP = saveIP;
 
          break;
@@ -1223,11 +1165,11 @@ void State8086::Emulate8086Op(int runtime)
       case 0xA6: // CMPS m8,m8         compares byte at address DS:(E)SI with byte at address ES:(E)DI and sets the status flags accordingly (pg 93)
       {
          // Do normal operation
-         uint8_t op1 = mem->getmem<uint8_t>(segment, pi_regs.SI);
-         uint8_t op2 = mem->getmem<uint8_t>(segRegs.ES, pi_regs.DI);
-         ALU::sub<uint8_t>(op1, op2, flags);
+         alu.sub<uint8_t>(
+            mem->getmem<uint8_t>(segment, pi_regs.SI),
+            mem->getmem<uint8_t>(segRegs.ES, pi_regs.DI));
 
-         if (flags.D == 0) {
+         if (alu.flags.D == 0) {
             pi_regs.SI += 1;
             pi_regs.DI += 1;
          } else {
@@ -1235,7 +1177,7 @@ void State8086::Emulate8086Op(int runtime)
             pi_regs.DI -= 1;
          }
 
-         if (continueFindLoop(repeatType, flags.Z, d_regs.c.x))
+         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
             IP = saveIP;
 
          break;
@@ -1243,11 +1185,11 @@ void State8086::Emulate8086Op(int runtime)
       case 0xA7: // CMPS m16,m16       compares word at address DS:(E)SI with word at address ES:(E)DI and sets the status flags accordingly (pg 93)
       {
          // Do normal operation
-         uint16_t op1 = mem->getmem<uint16_t>(segRegs.DS, pi_regs.SI);
-         uint16_t op2 = mem->getmem<uint16_t>(segRegs.ES, pi_regs.DI);
-         ALU::sub<uint16_t>(op1, op2, flags);
+         alu.sub<uint16_t>(
+            mem->getmem<uint16_t>(segRegs.DS, pi_regs.SI),
+            mem->getmem<uint16_t>(segRegs.ES, pi_regs.DI));
 
-         if (flags.D == 0) {
+         if (alu.flags.D == 0) {
             pi_regs.SI += 2;
             pi_regs.DI += 2;
          } else {
@@ -1255,7 +1197,7 @@ void State8086::Emulate8086Op(int runtime)
             pi_regs.DI -= 2;
          }
 
-         if (continueFindLoop(repeatType, flags.Z, d_regs.c.x))
+         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
             IP = saveIP;
 
          break;
@@ -1264,32 +1206,28 @@ void State8086::Emulate8086Op(int runtime)
       // [1010111 w]
       case 0xAE: // SCAS m8            compare AL with byte at ES:(E)DI and set status flags (pg 452)
       {
-         uint8_t op1 = d_regs.a.l;
-         uint8_t op2 = mem->getmem<uint8_t>(segRegs.ES, pi_regs.DI);
-         ALU::sub<uint8_t>(op1, op2, flags);
+         alu.sub<uint8_t>(
+            d_regs.a.l,
+            mem->getmem<uint8_t>(segRegs.ES, pi_regs.DI));
 
-         if (flags.D == 0)
-            pi_regs.DI += 1;
-         else
-            pi_regs.DI -= 1;
+         if (alu.flags.D == 0) pi_regs.DI += 1;
+         else                  pi_regs.DI -= 1;
 
-         if (continueFindLoop(repeatType, flags.Z, d_regs.c.x))
+         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
             IP = saveIP;
 
          break;
       }
       case 0xAF: // SCAS m16           compare AX with word at ES:(E)DI and set status flags (pg 452)
       {
-         uint16_t op1 = d_regs.a.x;
-         uint16_t op2 = mem->getmem<uint16_t>(segRegs.ES, pi_regs.DI);
-         ALU::sub<uint16_t>(op1, op2, flags);
+         alu.sub<uint16_t>(
+            d_regs.a.x,
+            mem->getmem<uint16_t>(segRegs.ES, pi_regs.DI));
 
-         if (flags.D == 0)
-            pi_regs.DI += 2;
-         else
-            pi_regs.DI -= 2;
+         if (alu.flags.D == 0) pi_regs.DI += 2;
+         else                  pi_regs.DI -= 2;
 
-         if (continueFindLoop(repeatType, flags.Z, d_regs.c.x))
+         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
             IP = saveIP;
 
          break;
@@ -1300,12 +1238,10 @@ void State8086::Emulate8086Op(int runtime)
       {
          d_regs.a.l = mem->getmem<uint8_t>(segRegs.DS, pi_regs.SI);
 
-         if (flags.D == 0)
-            pi_regs.SI += 1;
-         else
-            pi_regs.SI -= 1;
+         if (alu.flags.D == 0) pi_regs.SI += 1;
+         else                  pi_regs.SI -= 1;
 
-         if (continueFindLoop(repeatType, flags.Z, d_regs.c.x))
+         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
             IP = saveIP;
 
          break;
@@ -1314,12 +1250,10 @@ void State8086::Emulate8086Op(int runtime)
       {
          d_regs.a.x = mem->getmem<uint16_t>(segRegs.DS, pi_regs.SI);
 
-         if (flags.D == 0)
-            pi_regs.SI += 2;
-         else
-            pi_regs.SI -= 2;
+         if (alu.flags.D == 0) pi_regs.SI += 2;
+         else                  pi_regs.SI -= 2;
 
-         if (continueFindLoop(repeatType, flags.Z, d_regs.c.x))
+         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
             IP = saveIP;
 
          break;
@@ -1330,12 +1264,10 @@ void State8086::Emulate8086Op(int runtime)
       {
          mem->putmem<uint8_t>(segRegs.ES, pi_regs.DI, d_regs.a.l);
 
-         if (flags.D == 0)
-            pi_regs.DI += 1;
-         else
-            pi_regs.DI -= 1;
+         if (alu.flags.D == 0) pi_regs.DI += 1;
+         else                  pi_regs.DI -= 1;
 
-         if (continueFindLoop(repeatType, flags.Z, d_regs.c.x))
+         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
             IP = saveIP;
 
          break;
@@ -1344,11 +1276,10 @@ void State8086::Emulate8086Op(int runtime)
       {
          mem->putmem<uint16_t>(segRegs.ES, pi_regs.DI, d_regs.a.x);
 
-         if (flags.D == 0)
-            pi_regs.DI += 2;
-         else
-            pi_regs.DI -= 2;
-         if (continueFindLoop(repeatType, flags.Z, d_regs.c.x))
+         if (alu.flags.D == 0) pi_regs.DI += 2;
+         else                  pi_regs.DI -= 2;
+
+         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
             IP = saveIP;
 
          break;
@@ -1365,8 +1296,7 @@ void State8086::Emulate8086Op(int runtime)
       // [11101000] [IP-INC-LO] [IP-INC-HI]
       case 0xE8: // CALL rel16         Call near, relative, displacement relative to next instruction (pg 68)
       {
-         disp16 = mem->getmem<uint16_t>(segRegs.CS, IP);
-         incrementIP(2);
+         disp16 = imm<uint16_t>();
          push(IP);
          IP += disp16;
          break;
@@ -1375,10 +1305,8 @@ void State8086::Emulate8086Op(int runtime)
       // [10011010] [IP-lo] [IP-hi] [CS-lo] [CS-hi]
       case 0x9A: // CALL ptr16:16      Call far, absolute, address given in operand (pg 68)
       {
-         uint16_t newIP = mem->getmem<uint16_t>(segRegs.CS, IP);
-         incrementIP(2);
-         uint16_t newCS = mem->getmem<uint16_t>(segRegs.CS, IP);
-         incrementIP(2);
+         uint16_t newIP = imm<uint16_t>();
+         uint16_t newCS = imm<uint16_t>();
 
          push(segRegs.CS);
          push(IP);
@@ -1395,8 +1323,7 @@ void State8086::Emulate8086Op(int runtime)
       // [11101001] [IP-INC-LO] [IP-INC-HI]
       case 0xE9: // JMP rel16          jump near, relative, displacement relative to next instruction (pg 275)
       {
-         disp16 = mem->getmem<uint16_t>(segRegs.CS, IP);
-         incrementIP(2);
+         disp16 = imm<uint16_t>();
          IP += disp16;
          break;
       }
@@ -1404,8 +1331,7 @@ void State8086::Emulate8086Op(int runtime)
       // [11101011] [IP-INC8]
       case 0xEB: // JMP rel8           jump short, relative, displacement relative to next instruction (pg 275)
       {
-         disp16 = (int16_t)(int8_t)mem->getmem<uint8_t>(segRegs.CS, IP);
-         incrementIP(1);
+         disp16 = (int16_t)(int8_t)imm<uint8_t>();
          IP += disp16;
          break;
       }
@@ -1413,13 +1339,10 @@ void State8086::Emulate8086Op(int runtime)
       // [11101010] [IP-lo] [IP-hi] [CS-lo] [CS-hi]
       case 0xEA: // JMP ptr16:16       jump far, absolute, address given in operand (pg 275)
       {
-         uint16_t newIP = mem->getmem<uint16_t>(segRegs.CS, IP);
-         incrementIP(2);
-         uint16_t newCS = mem->getmem<uint16_t>(segRegs.CS, IP);
-         //incrementIP(2); // pointless since this is an absolute jump
-
-         segRegs.CS = newCS;
-         IP = newIP;
+         // Can't just assigne IP address right away because that would mess with fetching [CS-lo] [CS-hi]
+         uint16_t newIP = imm<uint16_t>();
+         segRegs.CS = imm<uint16_t>(); // Last immediate so go ahead and use it
+         IP = newIP; // No more immediates to fetch so IP can be updated
 
          break;
       }
@@ -1437,7 +1360,7 @@ void State8086::Emulate8086Op(int runtime)
       // [11000010] [data-lo] [data-hi]
       case 0xC2: // RET imm16          near return to calling procedure and pop imm16 bytes from stack (pg 437)
       {
-         uint16_t adjustSP = mem->getmem<uint16_t>(segRegs.CS, IP);
+         uint16_t adjustSP = imm<uint16_t>();
          IP = pop(); // pop IP off stack
          segRegs.CS += adjustSP; // pop n bytes from stack
          break;
@@ -1454,7 +1377,7 @@ void State8086::Emulate8086Op(int runtime)
       // [11001010] [data-lo] [data-hi]
       case 0xCA: // RET imm16          far return to calling procedure and pop imm16 bytes from stack (pg 437)
       {
-         uint16_t adjustSP = mem->getmem<uint16_t>(segRegs.CS, IP);
+         uint16_t adjustSP = imm<uint16_t>();
          IP = pop();
          segRegs.CS = pop() + adjustSP;
          break;
@@ -1493,12 +1416,9 @@ void State8086::Emulate8086Op(int runtime)
       case 0x7E: // JLE/JNG            jump short if less or equal/not greater (ZF=1 or SF<>OF) (pg 271)
       case 0x7F: // JNLE/JG            jump short if greater/not less or equal (ZF=0 and SF=OF) (pg 271)
       {
-         auto test = opcode & 0xF;
+         disp16 = (int16_t)(int8_t)imm<uint8_t>();
 
-         disp16 = (int16_t)(int8_t)mem->getmem<uint8_t>(segRegs.CS, IP);
-         incrementIP(1);
-
-         if (ALU::condition(test, flags))
+         if (alu.condition(opcode & 0xF))
             IP += disp16;
 
          break;
@@ -1508,8 +1428,7 @@ void State8086::Emulate8086Op(int runtime)
       // Loop = Loop CX times:                         [11100010]
       case 0xE2: // LOOP rel8          decrement count; jump short if count!=0 (pg 308)
       {
-         disp16 = (int16_t)(int8_t)mem->getmem<uint8_t>(segRegs.CS, IP);
-         incrementIP(1);
+         disp16 = (int16_t)(int8_t)imm<uint8_t>();
          d_regs.c.x--;
          if (d_regs.c.x != 0)
             IP += disp16;
@@ -1518,28 +1437,25 @@ void State8086::Emulate8086Op(int runtime)
       // LOOPZ/LOOPE = Loop while zero/equal:          [11100001]
       case 0xE1: // LOOPE/LOOPZ rel8   decrement count; jump short if count!=0 and ZF=1 (pg 308)
       {
-         disp16 = (int16_t)(int8_t)mem->getmem<uint8_t>(segRegs.CS, IP);
-         incrementIP(1);
+         disp16 = (int16_t)(int8_t)imm<uint8_t>();
          d_regs.c.x--;
-         if ((d_regs.c.x != 0) && (flags.Z == 1))
+         if ((d_regs.c.x != 0) && (alu.flags.Z == 1))
             IP += disp16;
          break;
       }
       // LOOPNZ/LOOPNE = Loop while not zero/equal:    [11100000]
       case 0xE0: // LOOPNE/LOOPNZ rel8 decrement count; jump short if count!=0 and ZF=0 (pg 308)
       {
-         disp16 = (int16_t)(int8_t)mem->getmem<uint8_t>(segRegs.CS, IP);
-         incrementIP(1);
+         disp16 = (int16_t)(int8_t)imm<uint8_t>();
          d_regs.c.x--;
-         if ((d_regs.c.x != 0) && (flags.Z == 0))
+         if ((d_regs.c.x != 0) && (alu.flags.Z == 0))
             IP += disp16;
          break;
       }
       // JCXZ = Jump on CX zero:                       [11100011]
       case 0xE3: // JCXZ rel8          jump short if CX register is 0 (pg 271)
       {
-         disp16 = (int16_t)(int8_t)mem->getmem<uint8_t>(segRegs.CS, IP);
-         incrementIP(1);
+         disp16 = (int16_t)(int8_t)imm<uint8_t>();
          if (d_regs.c.x == 0)
             IP += disp16;
          break;
@@ -1551,7 +1467,7 @@ void State8086::Emulate8086Op(int runtime)
       // [11001101] [DATA-8]
       case 0xCD: // INT imm8           interrupt vector number specified by immediate byte (pg 248)
       {
-         uint8_t vector = mem->getmem<uint8_t>(segRegs.CS, IP); incrementIP(1);
+         uint8_t vector = imm<uint8_t>();
          interrupt(vector);
          break;
       }
@@ -1566,7 +1482,7 @@ void State8086::Emulate8086Op(int runtime)
       // [11001110]
       case 0xCE: // INTO               interrupt 4-if overflow flag is 1 (pg 248)
       {
-         if (flags.O == 1)
+         if (alu.flags.O == 1)
             interrupt(4);
          break;
       }
@@ -1576,7 +1492,8 @@ void State8086::Emulate8086Op(int runtime)
       {
          IP = pop();
          segRegs.CS = pop();
-         flags.set(pop());
+         alu.flags.set(pop());
+         break;
       }
 
 
@@ -1585,27 +1502,27 @@ void State8086::Emulate8086Op(int runtime)
       //****** CLC CMC STC CLD STD CLI STI HLT WAIT ESC LOCK SEGMENT ******//
       //*******************************************************************//
 
-   // CLC = Clear carry:                 [11111000]
+      // CLC = Clear carry:                 [11111000]
       case 0xF8: // CLC                clear CF flag (pg 81)
-      { flags.C = 0; break; }
+      { alu.flags.C = 0; break; }
       // CMC = Complement carry:            [11110101]
       case 0xF5: // CMC                Complement CF flag (pg 86)
-      { flags.C = (flags.C ? 0 : 1); break; }
+      { alu.flags.C = (alu.flags.C ? 0 : 1); break; }
       // STC = Set carry:                   [11111001]
       case 0xF9: // STC                set CF flag (pg 469)
-      { flags.C = 1; break; }
+      { alu.flags.C = 1; break; }
       // CLD = Clear direction:             [11111100]
       case 0xFC: // CLD                clear DF flag (pg 82)
-      { flags.D = 0; break; }
+      { alu.flags.D = 0; break; }
       // STD = Set direction:               [11111101]
       case 0xFD: // STD                set DF flag (pg 470)
-      { flags.D = 1; break; }
+      { alu.flags.D = 1; break; }
       // CLI = Clear interrupt:             [11111010]
       case 0xFA: // CLI                clear interrupt flag; interrupts disabled when interrupt flag cleared (pg 83)
-      { flags.I = 0; break; }
+      { alu.flags.I = 0; break; }
       // STI = Set interrupt:               [11111011]
       case 0xFB: // STI                set interrupt flag; external, maskable interrupts enabled at the end of the next instruction (pg 471)
-      { flags.I = 1; break; }
+      { alu.flags.I = 1; break; }
       // HLT = Halt:                        [11110100]
       case 0xF4: // HLT                Halt (pg 234)
       { halted = true; break; }
@@ -1622,7 +1539,10 @@ void State8086::Emulate8086Op(int runtime)
       case 0xDD: // (Escape to Coprecessor Instruction Set)
       case 0xDE: // (Escape to Coprecessor Instruction Set)
       case 0xDF: // (Escape to Coprecessor Instruction Set)
-         modregrm(); break; // escape to x87 FPU (unsupported)
+      {
+         modregrm(); // fetch [mod reg r/m] byte
+         break; // escape to x87 FPU (unsupported)
+      }
       // LOCK = Bus lock prefix:            [11110000]
       case 0xF0: // LOCK               asserts LOCK# signal for duration of the accompanying instruction (pg 303)
          break; // This is a prefix opcode. This one can probably be ignored since this is not a hardware emulator.
@@ -1631,10 +1551,8 @@ void State8086::Emulate8086Op(int runtime)
       case 0x6C: // INS m8,DX          Input byte from I/O port specified in DX into memory location specified in ES:(E)DI (pg 245)
       {
          mem->putmem<uint8_t>(segRegs.ES, pi_regs.DI, io->read<uint8_t>(d_regs.d.x));
-         if (flags.D == 0)
-            pi_regs.DI += 1;
-         else
-            pi_regs.DI -= 1;
+         if (alu.flags.D == 0) pi_regs.DI += 1;
+         else                  pi_regs.DI -= 1;
          if (continueLoop(repeatType, d_regs.c.x))
             IP = saveIP;
          break;
@@ -1642,10 +1560,8 @@ void State8086::Emulate8086Op(int runtime)
       case 0x6D: // INS m16,DX         Input word from I/O port specified in DX into memory location specified in ES:(E)DI (pg 245)
       {
          mem->putmem<uint16_t>(segRegs.ES, pi_regs.DI, io->read<uint16_t>(d_regs.d.x));
-         if (flags.D == 0)
-            pi_regs.DI += 2;
-         else
-            pi_regs.DI -= 2;
+         if (alu.flags.D == 0) pi_regs.DI += 2;
+         else                  pi_regs.DI -= 2;
          if (continueLoop(repeatType, d_regs.c.x))
             IP = saveIP;
          break;
@@ -1654,10 +1570,8 @@ void State8086::Emulate8086Op(int runtime)
       case 0x6E: // OUTS DX,m8         Output byte from memory location specified in DS:(E)SI to I/O port specified in DX (pg 347)
       {
          io->write<uint8_t>(d_regs.d.x, mem->getmem<uint8_t>(segRegs.ES, pi_regs.DI));
-         if (flags.D == 0)
-            pi_regs.SI += 1;
-         else
-            pi_regs.SI -= 1;
+         if (alu.flags.D == 0) pi_regs.SI += 1;
+         else                  pi_regs.SI -= 1;
          if (continueLoop(repeatType, d_regs.c.x))
             IP = saveIP;
          break;
@@ -1665,10 +1579,8 @@ void State8086::Emulate8086Op(int runtime)
       case 0x6F: // OUTS DX,m16        Output word from memory location specified in DS:(E)SI to I/O port specified in DX (pg 347)
       {
          io->write<uint16_t>(d_regs.d.x, mem->getmem<uint16_t>(segRegs.ES, pi_regs.DI));
-         if (flags.D == 0)
-            pi_regs.SI += 2;
-         else
-            pi_regs.SI -= 2;
+         if (alu.flags.D == 0) pi_regs.SI += 2;
+         else                  pi_regs.SI -= 2;
          if (continueLoop(repeatType, d_regs.c.x))
             IP = saveIP;
          break;
