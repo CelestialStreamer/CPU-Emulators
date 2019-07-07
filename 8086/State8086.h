@@ -13,13 +13,13 @@
 //  0x00f8 -  0x00ff (8 bytes)
 class State8086 {
 public:
-   State8086() {
-      reset();
-   }
-   ~State8086() {
-      delete io;
-      delete mem;
-   }
+   State8086(Memory*, IO*);
+   ~State8086();
+
+   // Reset/clear alu/segment flags, IP, and leave halt state if in halt state
+   void reset();
+   void externalInterrupt(unsigned int vector);
+   void run(unsigned int runtime);
 
    /// REGISTERS ///
    // The 8086 has eight 16-bit general purpose registers divided into two groups:
@@ -53,6 +53,7 @@ public:
 
    // The megabyte of memory space is divided into logical segments of up to 64k bytes each.
 
+   // 4 16-bit special purpose registers
    struct SegmentRegisters { // Segment Registers
       // Instructions are fetched from this segment
       uint16_t ES; // Extra segment
@@ -77,56 +78,49 @@ public:
    uint16_t IP; // Instruction Pointer
 
 
-   void reset() {
-      IP = 0;
-      halted = false;
-   }
-
-   void externalInterrupt(uint8_t vector) {
-      if (alu.flags.I)
-         interrupt(vector);
-   }
-
-   void run(int runtime);
-
 private:
    IO * io;
    ALU alu;
    Memory * mem;
 
-   struct ModRegRm {
-      int mode, reg, rm;
-      void operator()();
-   } modregrm;
-
    uint16_t disp16;
    uint16_t segment;
    bool segoverride;
-
    bool halted;
+
+   struct ModRegRm {
+      ModRegRm(State8086* state) : state(state) {}
+      int mode;
+      int reg;
+      int rm;
+      void operator()();
+   private:
+      State8086* state;
+   } modregrm = ModRegRm(this);
 
    // register/memory access
    template<typename T> T    readrm();
    template<typename T> void writerm(T value);
 
-   // register access
-   template<typename T> T& fetchreg(uint8_t regid);
+   // direct register access
+   template<typename T> T& fetchreg(unsigned int regid);
 
-   // other
-   template<typename T>
-   T imm() {
-      T value = mem->getmem<T>(segRegs.CS, IP);
-      IP += sizeof(T);
-      return value;
-   }
+   // Fetches the data pointed to by IP
+   template<typename T> T imm();
 
    void push(uint16_t value);
    uint16_t pop();
-   void interrupt(uint8_t vector);
+   void interrupt(unsigned int vector);
    int getea();
 };
 
 
+template<typename T>
+T State8086::imm() {
+   T value = mem->getmem<T>(segRegs.CS, IP);
+   IP += sizeof(T);
+   return value;
+}
 
 template<typename T>
 T State8086::readrm() {
