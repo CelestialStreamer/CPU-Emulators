@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdint>
+
 class Memory {
 public:
    Memory();
@@ -9,4 +11,6 @@ public:
 
    template<typename T> void putmem(int address, T value) {}
    template<typename T> void putmem(int address, int offset, T value) {}
+private:
+   uint8_t *mem;
 };
