@@ -548,89 +548,41 @@ void State8086::run(unsigned int runtime)
       // [001010 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] SUB = Subtract:
       // [001100 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] XOR = Exclusive or:
       // [001110 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] CMP = Compare:
-      case 0x00: // ADD r/m8,r8        add r8 to r/m8 (IA V2 p47)
-      case 0x08: // OR  r/m8,r8        r/m8 OR r8 (IA V2 p343)
-      case 0x10: // ADC r/m8,r8        add with carry byte register to r/m8 (IA V2 p45)
-      case 0x18: // SBB r/m8,r8        subtract with borrow r8 from r/m8 (IA V2 p450)
-      case 0x20: // AND r/m8,r8        r/m8 AND r8 (IA V2 p49)
-      case 0x28: // SUB r/m8,r8        subtract r8 from r/m8 (IA V2 p478)
-      case 0x30: // XOR r/m8,r8        r/m8 XOR r8 (IA V2 p496)
-      case 0x38: // CMP r/m8,r8        compare r8 with r/m8 (IA V2 p91)
-      {
-         BIU.fetchModRM(); // fetch [mod reg r/m] byte
-         uint8_t res = alu.arithm<uint8_t>(
-            (opcode & 0b0011'1000) >> 3, // operation (bits 4-6)
-            BIU.rm<uint8_t>(),           // operand 1
-            BIU.reg<uint8_t>()          // operand 2
-            );
+      case 0x00: BIU.fetchModRM(); BIU.rm<uint8_t>() = alu.add<uint8_t>(BIU.rm<uint8_t>(), BIU.reg<uint8_t>()); break; // ADD r/m8,r8        add r8 to r/m8 (IA V2 p47)
+      case 0x08: BIU.fetchModRM(); BIU.rm<uint8_t>() = alu._or<uint8_t>(BIU.rm<uint8_t>(), BIU.reg<uint8_t>()); break; // OR  r/m8,r8        r/m8 OR r8 (IA V2 p343)
+      case 0x10: BIU.fetchModRM(); BIU.rm<uint8_t>() = alu.adc<uint8_t>(BIU.rm<uint8_t>(), BIU.reg<uint8_t>()); break; // ADC r/m8,r8        add with carry byte register to r/m8 (IA V2 p45)
+      case 0x18: BIU.fetchModRM(); BIU.rm<uint8_t>() = alu.sbb<uint8_t>(BIU.rm<uint8_t>(), BIU.reg<uint8_t>()); break; // SBB r/m8,r8        subtract with borrow r8 from r/m8 (IA V2 p450)
+      case 0x20: BIU.fetchModRM(); BIU.rm<uint8_t>() = alu._and<uint8_t>(BIU.rm<uint8_t>(), BIU.reg<uint8_t>()); break; // AND r/m8,r8        r/m8 AND r8 (IA V2 p49)
+      case 0x28: BIU.fetchModRM(); BIU.rm<uint8_t>() = alu.sub<uint8_t>(BIU.rm<uint8_t>(), BIU.reg<uint8_t>()); break; // SUB r/m8,r8        subtract r8 from r/m8 (IA V2 p478)
+      case 0x30: BIU.fetchModRM(); BIU.rm<uint8_t>() = alu._xor<uint8_t>(BIU.rm<uint8_t>(), BIU.reg<uint8_t>()); break; // XOR r/m8,r8        r/m8 XOR r8 (IA V2 p496)
+      case 0x38: BIU.fetchModRM(); /*               */ alu.sub<uint8_t>(BIU.rm<uint8_t>(), BIU.reg<uint8_t>()); break; // CMP r/m8,r8        compare r8 with r/m8 (IA V2 p91)
 
-         if (opcode != 0x38) // CMP does not save results, computes flags only
-            BIU.rm<uint8_t>() = res;
-         break;
-      }
+      case 0x01: BIU.fetchModRM(); BIU.rm<uint16_t>() = alu.add<uint16_t>(BIU.rm<uint16_t>(), BIU.reg<uint16_t>()); break; // ADD r/m16,r16      add r16 to r/m16                    (IA V2 p47)
+      case 0x09: BIU.fetchModRM(); BIU.rm<uint16_t>() = alu._or<uint16_t>(BIU.rm<uint16_t>(), BIU.reg<uint16_t>()); break; // OR  r/m16,r16      r/m16 OR r16                        (IA V2 p343)
+      case 0x11: BIU.fetchModRM(); BIU.rm<uint16_t>() = alu.adc<uint16_t>(BIU.rm<uint16_t>(), BIU.reg<uint16_t>()); break; // ADC r/m16,r16      add with carry r16 to r/m16         (IA V2 p45)
+      case 0x19: BIU.fetchModRM(); BIU.rm<uint16_t>() = alu.sbb<uint16_t>(BIU.rm<uint16_t>(), BIU.reg<uint16_t>()); break; // SBB r/m16,r16      subtract with borrow r16 from r/m16 (IA V2 p450)
+      case 0x21: BIU.fetchModRM(); BIU.rm<uint16_t>() = alu._and<uint16_t>(BIU.rm<uint16_t>(), BIU.reg<uint16_t>()); break; // AND r/m16,r16      r/m16 AND r16                       (IA V2 p49)
+      case 0x29: BIU.fetchModRM(); BIU.rm<uint16_t>() = alu.sub<uint16_t>(BIU.rm<uint16_t>(), BIU.reg<uint16_t>()); break; // SUB r/m16,r16      subtract r16 from r/m16             (IA V2 p478)
+      case 0x31: BIU.fetchModRM(); BIU.rm<uint16_t>() = alu._xor<uint16_t>(BIU.rm<uint16_t>(), BIU.reg<uint16_t>()); break; // XOR r/m16,r16      r/m16 XOR r16                       (IA V2 p496)
+      case 0x39: BIU.fetchModRM(); /*                */ alu.sub<uint16_t>(BIU.rm<uint16_t>(), BIU.reg<uint16_t>()); break; // CMP r/m16,r16      compare r16 with r/m16              (IA V2 p91)
 
-      case 0x01: // ADD r/m16,r16      add r16 to r/m16                    (IA V2 p47)
-      case 0x09: // OR  r/m16,r16      r/m16 OR r16                        (IA V2 p343)
-      case 0x11: // ADC r/m16,r16      add with carry r16 to r/m16         (IA V2 p45)
-      case 0x19: // SBB r/m16,r16      subtract with borrow r16 from r/m16 (IA V2 p450)
-      case 0x21: // AND r/m16,r16      r/m16 AND r16                       (IA V2 p49)
-      case 0x29: // SUB r/m16,r16      subtract r16 from r/m16             (IA V2 p478)
-      case 0x31: // XOR r/m16,r16      r/m16 XOR r16                       (IA V2 p496)
-      case 0x39: // CMP r/m16,r16      compare r16 with r/m16              (IA V2 p91)
-      {
-         BIU.fetchModRM(); // fetch [mod reg r/m] byte
-         uint16_t res = alu.arithm<uint16_t>(
-            (opcode & 0b0011'1000) >> 3, // operation (bits 4-6)
-            BIU.rm<uint16_t>(),          // operand 1
-            BIU.reg<uint16_t>()         // operand 2
-            );
+      case 0x02: BIU.fetchModRM(); BIU.reg<uint8_t>() = alu.add<uint8_t>(BIU.reg<uint8_t>(), BIU.rm<uint8_t>()); break; // ADD r8,r/m8        add r/m8 to r8                       (IA V2 p47)
+      case 0x0A: BIU.fetchModRM(); BIU.reg<uint8_t>() = alu._or<uint8_t>(BIU.reg<uint8_t>(), BIU.rm<uint8_t>()); break; // OR  r8,r/m8        r8 OR r/m8                           (IA V2 p343)
+      case 0x12: BIU.fetchModRM(); BIU.reg<uint8_t>() = alu.adc<uint8_t>(BIU.reg<uint8_t>(), BIU.rm<uint8_t>()); break; // ADC r8,r/m8        add with carry r/m8 to byte register (IA V2 p45)
+      case 0x1A: BIU.fetchModRM(); BIU.reg<uint8_t>() = alu.sbb<uint8_t>(BIU.reg<uint8_t>(), BIU.rm<uint8_t>()); break; // SBB r8,r/m8        subtract with borrow r/m8 from r8    (IA V2 p450)
+      case 0x22: BIU.fetchModRM(); BIU.reg<uint8_t>() = alu._and<uint8_t>(BIU.reg<uint8_t>(), BIU.rm<uint8_t>()); break; // AND r8,r/m8        r8 AND r/m8                          (IA V2 p49)
+      case 0x2A: BIU.fetchModRM(); BIU.reg<uint8_t>() = alu.sub<uint8_t>(BIU.reg<uint8_t>(), BIU.rm<uint8_t>()); break; // SUB r8,r/m8        subtract r/m8 from r8                (IA V2 p478)
+      case 0x32: BIU.fetchModRM(); BIU.reg<uint8_t>() = alu._xor<uint8_t>(BIU.reg<uint8_t>(), BIU.rm<uint8_t>()); break; // XOR r8,r/m8        r8 XOR r/m8                          (IA V2 p496)
+      case 0x3A: BIU.fetchModRM(); /*                */ alu.sub<uint8_t>(BIU.reg<uint8_t>(), BIU.rm<uint8_t>()); break; // CMP r8,r/m8        compare r/m8 with r8                 (IA V2 p91)
 
-         if (opcode != 0x39) // CMP does not save results, computes flags only
-            BIU.rm<uint16_t>() = res;
-         break;
-      }
-
-      case 0x02: // ADD r8,r/m8        add r/m8 to r8                       (IA V2 p47)
-      case 0x0A: // OR  r8,r/m8        r8 OR r/m8                           (IA V2 p343)
-      case 0x12: // ADC r8,r/m8        add with carry r/m8 to byte register (IA V2 p45)
-      case 0x1A: // SBB r8,r/m8        subtract with borrow r/m8 from r8    (IA V2 p450)
-      case 0x22: // AND r8,r/m8        r8 AND r/m8                          (IA V2 p49)
-      case 0x2A: // SUB r8,r/m8        subtract r/m8 from r8                (IA V2 p478)
-      case 0x32: // XOR r8,r/m8        r8 XOR r/m8                          (IA V2 p496)
-      case 0x3A: // CMP r8,r/m8        compare r/m8 with r8                 (IA V2 p91)
-      {
-         BIU.fetchModRM(); // fetch [mod reg r/m] byte
-         uint8_t res = alu.arithm<uint8_t>(
-            (opcode & 0b0011'1000) >> 3, // operation (bits 4-6)
-            BIU.reg<uint8_t>(),         // operand 1
-            BIU.rm<uint8_t>()            // operand 2
-            );
-
-         if (opcode != 0x3A) // CMP does not save results, computes flags only
-            BIU.reg<uint8_t>() = res;
-         break;
-      }
-
-      case 0x03: // ADD r16,r/m16      add r/m16 to r16                    (IA V2 p47)
-      case 0x0B: // OR  r16,r/m16      r16 OR r/m16                        (IA V2 p343)
-      case 0x13: // ADC r16,r/m16      add with carry r/m16 to r16         (IA V2 p45)
-      case 0x1B: // SBB r16,r/m16      subtract with borrow r/m16 from r16 (IA V2 p450)
-      case 0x23: // AND r16,r/m16      r16 AND r/m16                       (IA V2 p49)
-      case 0x2B: // SUB r16,r/m16      subtract r/m16 from r16             (IA V2 p478)
-      case 0x33: // XOR r16,r/m16      r16 XOR r/m16                       (IA V2 p496)
-      case 0x3B: // CMP r16,r/m16      compare r/m16 with r16              (IA V2 p91)
-      {
-         BIU.fetchModRM(); // fetch [mod reg r/m] byte
-         uint16_t res = alu.arithm<uint16_t>(
-            (opcode & 0b0011'1000) >> 3, // operation (bits 4-6)
-            BIU.reg<uint16_t>(),        // operand 1
-            BIU.rm<uint16_t>()           // operand 2
-            );
-
-         if (opcode != 0x3B) // CMP does not save results, computes flags only
-            BIU.reg<uint16_t>() = res;
-         break;
-      }
+      case 0x03: BIU.fetchModRM(); BIU.reg<uint16_t>() = alu.add<uint16_t>(BIU.reg<uint16_t>(), BIU.rm<uint16_t>()); break; // ADD r16,r/m16      add r/m16 to r16                    (IA V2 p47)
+      case 0x0B: BIU.fetchModRM(); BIU.reg<uint16_t>() = alu._or<uint16_t>(BIU.reg<uint16_t>(), BIU.rm<uint16_t>()); break; // OR  r16,r/m16      r16 OR r/m16                        (IA V2 p343)
+      case 0x13: BIU.fetchModRM(); BIU.reg<uint16_t>() = alu.adc<uint16_t>(BIU.reg<uint16_t>(), BIU.rm<uint16_t>()); break; // ADC r16,r/m16      add with carry r/m16 to r16         (IA V2 p45)
+      case 0x1B: BIU.fetchModRM(); BIU.reg<uint16_t>() = alu.sbb<uint16_t>(BIU.reg<uint16_t>(), BIU.rm<uint16_t>()); break; // SBB r16,r/m16      subtract with borrow r/m16 from r16 (IA V2 p450)
+      case 0x23: BIU.fetchModRM(); BIU.reg<uint16_t>() = alu._and<uint16_t>(BIU.reg<uint16_t>(), BIU.rm<uint16_t>()); break; // AND r16,r/m16      r16 AND r/m16                       (IA V2 p49)
+      case 0x2B: BIU.fetchModRM(); BIU.reg<uint16_t>() = alu.sub<uint16_t>(BIU.reg<uint16_t>(), BIU.rm<uint16_t>()); break; // SUB r16,r/m16      subtract r/m16 from r16             (IA V2 p478)
+      case 0x33: BIU.fetchModRM(); BIU.reg<uint16_t>() = alu._xor<uint16_t>(BIU.reg<uint16_t>(), BIU.rm<uint16_t>()); break; // XOR r16,r/m16      r16 XOR r/m16                       (IA V2 p496)
+      case 0x3B: BIU.fetchModRM(); /*                 */ alu.sub<uint16_t>(BIU.reg<uint16_t>(), BIU.rm<uint16_t>()); break; // CMP r16,r/m16      compare r/m16 with r16              (IA V2 p91)
 
       // Immediate to accumulator
       // [00000 10 w] [data] [data if w=1] ADD = Add:
@@ -641,45 +593,23 @@ void State8086::run(unsigned int runtime)
       // [00101 10 w] [data] [data if w=1] SUB = Subtract:
       // [00110 10 w] [data] [data if w=1] XOR = Exclusive or:
       // [00111 10 w] [data] [data if w=1] CMP = Compare:
-      case 0x04: // ADD AL,imm8        add imm8 to AL                    (IA V2 p47)
-      case 0x0C: // OR  AL,imm8        AL OR imm8                        (IA V2 p343)
-      case 0x14: // ADC AL,imm8        add with carry imm8 to AL         (IA V2 p45)
-      case 0x1C: // SBB AL,imm8        subtract with borrow imm8 from AL (IA V2 p450)
-      case 0x24: // AND AL,imm8        AL AND imm8                       (IA V2 p49)
-      case 0x2C: // SUB AL,imm8        subtract imm8 from AL             (IA V2 p478)
-      case 0x34: // XOR AL,imm8        AL XOR imm8                       (IA V2 p496)
-      case 0x3C: // CMP AL,imm8        compare imm8 with AL              (IA V2 p91)
-      {
-         uint8_t res = alu.arithm<uint8_t>(
-            (opcode & 0b0011'1000) >> 3, // operation (bits 4-6)
-            d_regs.a.l,                  // operand 1
-            imm<uint8_t>()               // operand 2
-            );
+      case 0x04: BIU.fetchModRM(); d_regs.a.l = alu.add<uint8_t>(d_regs.a.l, imm<uint8_t>()); break; // ADD AL,imm8        add imm8 to AL                    (IA V2 p47)
+      case 0x0C: BIU.fetchModRM(); d_regs.a.l = alu._or<uint8_t>(d_regs.a.l, imm<uint8_t>()); break; // OR  AL,imm8        AL OR imm8                        (IA V2 p343)
+      case 0x14: BIU.fetchModRM(); d_regs.a.l = alu.adc<uint8_t>(d_regs.a.l, imm<uint8_t>()); break; // ADC AL,imm8        add with carry imm8 to AL         (IA V2 p45)
+      case 0x1C: BIU.fetchModRM(); d_regs.a.l = alu.sbb<uint8_t>(d_regs.a.l, imm<uint8_t>()); break; // SBB AL,imm8        subtract with borrow imm8 from AL (IA V2 p450)
+      case 0x24: BIU.fetchModRM(); d_regs.a.l = alu._and<uint8_t>(d_regs.a.l, imm<uint8_t>()); break; // AND AL,imm8        AL AND imm8                       (IA V2 p49)
+      case 0x2C: BIU.fetchModRM(); d_regs.a.l = alu.sub<uint8_t>(d_regs.a.l, imm<uint8_t>()); break; // SUB AL,imm8        subtract imm8 from AL             (IA V2 p478)
+      case 0x34: BIU.fetchModRM(); d_regs.a.l = alu._xor<uint8_t>(d_regs.a.l, imm<uint8_t>()); break; // XOR AL,imm8        AL XOR imm8                       (IA V2 p496)
+      case 0x3C: BIU.fetchModRM(); /*        */ alu.sub<uint8_t>(d_regs.a.l, imm<uint8_t>()); break; // CMP AL,imm8        compare imm8 with AL              (IA V2 p91)
 
-         if (opcode != 0x3C) // CMP does not save results, computes flags only
-            d_regs.a.l = res;
-         break;
-      }
-
-      case 0x05: // ADD AX,imm16       add imm16 to AX                    (IA V2 p47)
-      case 0x0D: // OR  AX,imm16       AX OR imm16                        (IA V2 p343)
-      case 0x15: // ADC AX,imm16       add with carry imm16 to AX         (IA V2 p45)
-      case 0x1D: // SBB AX,imm16       subtract with borrow imm16 from AX (IA V2 p450)
-      case 0x25: // AND AX,imm16       AX AND imm16                       (IA V2 p49)
-      case 0x2D: // SUB AX,imm16       subtract imm16 from AX             (IA V2 p478)
-      case 0x35: // XOR AX,imm16       AX XOR imm16                       (IA V2 p496)
-      case 0x3D: // CMP AX,imm16       compare imm16 with AX              (IA V2 p91)
-      {
-         uint16_t res = alu.arithm<uint16_t>(
-            (opcode & 0b0011'1000) >> 3, // operation (bits 4-6)
-            d_regs.a.x,                  // operand 1
-            imm<uint16_t>()              // operand 2
-            );
-
-         if (opcode != 0x3D) // CMP does not save results, computes flags only
-            d_regs.a.x = res;
-         break;
-      }
+      case 0x05: BIU.fetchModRM(); d_regs.a.x = alu.add<uint16_t>(d_regs.a.x, imm<uint16_t>()); break; // ADD AX,imm16       add imm16 to AX                    (IA V2 p47)
+      case 0x0D: BIU.fetchModRM(); d_regs.a.x = alu._or<uint16_t>(d_regs.a.x, imm<uint16_t>()); break; // OR  AX,imm16       AX OR imm16                        (IA V2 p343)
+      case 0x15: BIU.fetchModRM(); d_regs.a.x = alu.adc<uint16_t>(d_regs.a.x, imm<uint16_t>()); break; // ADC AX,imm16       add with carry imm16 to AX         (IA V2 p45)
+      case 0x1D: BIU.fetchModRM(); d_regs.a.x = alu.sbb<uint16_t>(d_regs.a.x, imm<uint16_t>()); break; // SBB AX,imm16       subtract with borrow imm16 from AX (IA V2 p450)
+      case 0x25: BIU.fetchModRM(); d_regs.a.x = alu._and<uint16_t>(d_regs.a.x, imm<uint16_t>()); break; // AND AX,imm16       AX AND imm16                       (IA V2 p49)
+      case 0x2D: BIU.fetchModRM(); d_regs.a.x = alu.sub<uint16_t>(d_regs.a.x, imm<uint16_t>()); break; // SUB AX,imm16       subtract imm16 from AX             (IA V2 p478)
+      case 0x35: BIU.fetchModRM(); d_regs.a.x = alu._xor<uint16_t>(d_regs.a.x, imm<uint16_t>()); break; // XOR AX,imm16       AX XOR imm16                       (IA V2 p496)
+      case 0x3D: BIU.fetchModRM(); /*        */ alu.sub<uint16_t>(d_regs.a.x, imm<uint16_t>()); break; // CMP AX,imm16       compare imm16 with AX              (IA V2 p91)
 
       // Immediate to register/memory
       // [100000 s w] [mod 000 r/m] [(DISP-LO)] [(DISP-HI)] [data] [data if s:w=01] ADD = Add:
