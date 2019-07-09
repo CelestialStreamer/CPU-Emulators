@@ -32,10 +32,7 @@ bool continueLoop(RepeatType repeatType, uint16_t &counter) {
    return true;
 }
 
-
-State8086::State8086(Memory* mem, IO* io) : mem(mem), io(io) {
-   reset();
-}
+State8086::State8086(Memory* mem, IO* io) : mem(mem), io(io) { reset(); }
 State8086::~State8086() {
    delete io;
    delete mem;
@@ -61,12 +58,21 @@ void State8086::externalInterrupt(unsigned int vector) {
 
 void State8086::interrupt(unsigned int vector) {
    push(alu.flags.get<uint16_t>());
-   push(segRegs.CS);
-   push(IP);
-   alu.flags.I = 0; // reset interrupt flag
-   alu.flags.T = 0; // reset trap flag
+   auto temp = alu.flags.T;
+   alu.flags.I = alu.flags.T = 0;
+   push(segRegs.CS); push(IP);
+   /// Call interrupt service routine
+   // This somehow sets the CS and IP registers, to what, I don't know
    segRegs.CS = BIU.mem<uint16_t>((vector << 2) + 2);
    IP = BIU.mem<uint16_t>(vector << 2);
+   if (false) // non maskable interrupt
+      interrupt(0); // which vector?
+   else if (temp)
+      interrupt(0);
+   /// Execute user interrupt procedure
+   IP = pop(); segRegs.CS = pop();
+   alu.flags.set<uint16_t>(pop());
+   // resume interrupted procedure
 }
 
 // r8 register mode
@@ -194,17 +200,21 @@ void State8086::run(unsigned int runtime)
 
 
    for (unsigned int count = 0; count < runtime;) {
-      if (trap_toggle)
-         interrupt(1);
-
-      trap_toggle = alu.flags.T;
-
-      //if (!trap_toggle && flags.I)
-      //   ;
-
 
       if (halted) // Halt state
          return;
+
+      // 8086 Family Figure 2-29 : Interrupt Processing Sequence (upper left)
+      if (false) // internal interrupt
+         interrupt(0); // no idea which code it is
+      else if (false) // non maskable interrupt
+         interrupt(0); // again, no idea which
+      else if (INTR && alu.flags.I) { // maskable interrupt and interrupt flag set
+         // read type code
+         interrupt(0); // I suppose this is where the type code goes?
+      } else if (alu.flags.T) //
+         interrupt(0); // which fucking vector is it?
+
 
 
       saveIP = IP; // Used if repeat prefix is present (to go back and execute instruction again)
@@ -215,7 +225,7 @@ void State8086::run(unsigned int runtime)
       // A call to modregrm() may override too.
       BIU.segment = segRegs.DS;
 
-      // Process all prefix byte(s) if there are any
+      // Process all prefix byte(s), if there are any
       for (bool prefix = true; prefix;) {
          opcode = imm<uint8_t>(); // Grab the next instruction
          count++;
@@ -451,55 +461,26 @@ void State8086::run(unsigned int runtime)
 
       // Fixed port
       // [1110010 w] [DATA-8]
-      case 0xE4: // IN AL,imm8         input byte from imm8 I/O port address into AL (IA V2 p241)
-      {
-         d_regs.a.l = io->read<uint8_t>(imm<uint8_t>());
-         break;
-      }
-      case 0xE5: // IN AX,imm8         input *word from imm8 I/O port address into AX (IA V2 p241) *change to match pattern of OUT (IA V2 p345)
-      {
-         d_regs.a.x = io->read<uint16_t>(imm<uint8_t>());
-         break;
-      }
+      case 0xE4: d_regs.a.l = io->read<uint8_t>(imm<uint8_t>()); break; // IN AL,imm8         input byte from imm8 I/O port address into AL (IA V2 p241)
+      case 0xE5: d_regs.a.x = io->read<uint16_t>(imm<uint8_t>()); break; // IN AX,imm8         input *word from imm8 I/O port address into AX (IA V2 p241) *change to match pattern of OUT (IA V2 p345)
+
       // Variable port
       // [1110110 w]
-      case 0xEC: // IN AL,DX           input byte from I/O port in DX into AL (IA V2 p241)
-      {
-         d_regs.a.l = io->read<uint8_t>(d_regs.d.x);
-         break;
-      }
-      case 0xED: // IN AX,DX           input word from I/O port in DX into AX (IA V2 p241)
-      {
-         d_regs.a.x = io->read<uint16_t>(d_regs.d.x);
-         break;
-      }
+      case 0xEC: d_regs.a.l = io->read<uint8_t>(d_regs.d.x); break; // IN AL,DX           input byte from I/O port in DX into AL (IA V2 p241)
+      case 0xED: d_regs.a.x = io->read<uint16_t>(d_regs.d.x); break; // IN AX,DX           input word from I/O port in DX into AX (IA V2 p241)
 
       // OUT = Output to:
 
       // Fixed port
       // [1110011 w] [DATA-8]
-      case 0xE6: // OUT imm8,AL        output byte in AL to I/O port address imm8 (IA V2 p345)
-      {
-         io->write<uint8_t>(imm<uint8_t>(), d_regs.a.l);
-         break;
-      }
-      case 0xE7: // OUT imm8,AX        output word in AX to I/O port address imm8 (IA V2 p345)
-      {
-         io->write<uint16_t>(imm<uint8_t>(), d_regs.a.x);
-         break;
-      }
+      case 0xE6: io->write<uint8_t>(imm<uint8_t>(), d_regs.a.l); break; // OUT imm8,AL        output byte in AL to I/O port address imm8 (IA V2 p345)
+      case 0xE7: io->write<uint16_t>(imm<uint8_t>(), d_regs.a.x); break; // OUT imm8,AX        output word in AX to I/O port address imm8 (IA V2 p345)
+
       // Variable port
       // [1110111 w]
-      case 0xEE: // OUT DX,AL          output byte in AL to I/O port address in DX (IA V2 p345)
-      {
-         io->write<uint8_t>(d_regs.d.x, d_regs.a.l);
-         break;
-      }
-      case 0xEF: // OUT DX,AX          output word in AX to I/O port address in DX (IA V2 p345)
-      {
-         io->write<uint16_t>(d_regs.d.x, d_regs.a.x);
-         break;
-      }
+      case 0xEE: io->write<uint8_t>(d_regs.d.x, d_regs.a.l); break; // OUT DX,AL          output byte in AL to I/O port address in DX (IA V2 p345)
+      case 0xEF: io->write<uint16_t>(d_regs.d.x, d_regs.a.x); break; // OUT DX,AX          output word in AX to I/O port address in DX (IA V2 p345)
+
       // XLAT = Translate byte to AL:
       // [11010111]
       case 0xD7: // XLAT m8            set AL to memory byte DS:[(E)BX+unsigned AL] (IA V2 p494)
@@ -538,32 +519,20 @@ void State8086::run(unsigned int runtime)
       }
       // PUSHF = Push flags:
       // [10011100]
-      case 0x9C: // PUSHF              push lower 16 bits of EFLAGS (IA V2 p420)
-      {
-         push(alu.flags.get<uint16_t>());
-         break;
-      }
+      case 0x9C: push(alu.flags.get<uint16_t>()); break; // PUSHF              push lower 16 bits of EFLAGS (IA V2 p420)
+
       // POPF = Pop flags:
       // [10011101]
-      case 0x9D: // POPF               pop top of stack into lower 16 bits of EFLAGS (IA V2 p386)
-      {
-         alu.flags.set<uint16_t>(pop());
-         break;
-      }
+      case 0x9D: alu.flags.set<uint16_t>(pop()); break; // POPF               pop top of stack into lower 16 bits of EFLAGS (IA V2 p386)
+
       // SAHF = Store AH into flags:
       // [10011110]
-      case 0x9E: // SAHF               loads SF,ZF,AF,PF, and CF from AH into EFLAGS register (IA V2 p445)
-      {
-         alu.flags.set<uint8_t>(d_regs.a.h);
-         break;
-      }
+      case 0x9E: alu.flags.set<uint8_t>(d_regs.a.h); break; // SAHF               loads SF,ZF,AF,PF, and CF from AH into EFLAGS register (IA V2 p445)
+
       // LAHF = Load AH with flags:
       // [10011111]
-      case 0x9F: // LAHF               load: AH=EFLAGS(SF:ZF:0:AF:0:PF:1:CF) (IA V2 p282)
-      {
-         d_regs.a.h = alu.flags.get<uint8_t>();
-         break;
-      }
+      case 0x9F: d_regs.a.h = alu.flags.get<uint8_t>(); break; // LAHF               load: AH=EFLAGS(SF:ZF:0:AF:0:PF:1:CF) (IA V2 p282)
+
 
       //******************************************************************************************//
       //******                                  Arithmetic                                  ******//
@@ -882,18 +851,12 @@ void State8086::run(unsigned int runtime)
 
       // AAA = ASCII adjust for add:
       // [00110111]
-      case 0x37: // AAA                ASCII adjust AL after addition (IA V2 p41)
-      {
-         alu.AAA(d_regs.a.l, d_regs.a.h);
-         break;
-      }
+      case 0x37: alu.AAA(d_regs.a.l, d_regs.a.h); break; // AAA                ASCII adjust AL after addition (IA V2 p41)
+
       // DAA = Decimal adjust for add:
       // [00100111]
-      case 0x27: // DAA                Decimal adjust AL after addition (IA V2 p109)
-      {
-         d_regs.a.l = alu.DAA(d_regs.a.l);
-         break;
-      }
+      case 0x27: d_regs.a.l = alu.DAA(d_regs.a.l); break; // DAA                Decimal adjust AL after addition (IA V2 p109)
+
 
       // DEC = Decrement:
 
@@ -1123,16 +1086,8 @@ void State8086::run(unsigned int runtime)
       }
       // Immediate data and accumulator
       // [1010100 w] [data] *[data if w=1] *this was not included in documentation, but I believe that it should be there.
-      case 0xA8: // TEST AL,imm8       AND imm8 with AL; set SF,ZF,PF according to result (IA V2 p480)
-      {
-         alu._and<uint8_t>(d_regs.a.l, imm<uint8_t>());
-         break;
-      }
-      case 0xA9: // TEST AX,imm16      AND imm16 with AX; set SF,ZF,PF according to result (IA V2 p480)
-      {
-         alu._and<uint16_t>(d_regs.a.x, imm<uint16_t>());
-         break;
-      }
+      case 0xA8: alu._and<uint8_t>(d_regs.a.l, imm<uint8_t>()); break; // TEST AL,imm8       AND imm8 with AL; set SF,ZF,PF according to result (IA V2 p480)
+      case 0xA9: alu._and<uint16_t>(d_regs.a.x, imm<uint16_t>()); break; // TEST AX,imm16      AND imm16 with AX; set SF,ZF,PF according to result (IA V2 p480)
 
 
       //*******************************************//
@@ -1502,30 +1457,15 @@ void State8086::run(unsigned int runtime)
       //****** CLC CMC STC CLD STD CLI STI HLT WAIT ESC LOCK SEGMENT ******//
       //*******************************************************************//
 
-      // CLC = Clear carry:                 [11111000]
-      case 0xF8: // CLC                clear CF flag (IA V2 p81)
-      { alu.flags.C = 0; break; }
-      // CMC = Complement carry:            [11110101]
-      case 0xF5: // CMC                Complement CF flag (IA V2 p86)
-      { alu.flags.C = (alu.flags.C ? 0 : 1); break; }
-      // STC = Set carry:                   [11111001]
-      case 0xF9: // STC                set CF flag (IA V2 p469)
-      { alu.flags.C = 1; break; }
-      // CLD = Clear direction:             [11111100]
-      case 0xFC: // CLD                clear DF flag (IA V2 p82)
-      { alu.flags.D = 0; break; }
-      // STD = Set direction:               [11111101]
-      case 0xFD: // STD                set DF flag (IA V2 p470)
-      { alu.flags.D = 1; break; }
-      // CLI = Clear interrupt:             [11111010]
-      case 0xFA: // CLI                clear interrupt flag; interrupts disabled when interrupt flag cleared (IA V2 p83)
-      { alu.flags.I = 0; break; }
-      // STI = Set interrupt:               [11111011]
-      case 0xFB: // STI                set interrupt flag; external, maskable interrupts enabled at the end of the next instruction (IA V2 p471)
-      { alu.flags.I = 1; break; }
-      // HLT = Halt:                        [11110100]
-      case 0xF4: // HLT                Halt (IA V2 p234)
-      { halted = true; break; }
+      case 0xF8: alu.flags.C = 0; break;                     // CLC                clear CF flag (IA V2 p81)
+      case 0xF5: alu.flags.C = (alu.flags.C ? 0 : 1); break; // CMC                Complement CF flag (IA V2 p86)
+      case 0xF9: alu.flags.C = 1; break;                     // STC                set CF flag (IA V2 p469)
+      case 0xFC: alu.flags.D = 0; break;                     // CLD                clear DF flag (IA V2 p82)
+      case 0xFD: alu.flags.D = 1; break;                     // STD                set DF flag (IA V2 p470)
+      case 0xFA: alu.flags.I = 0; break;                     // CLI                clear interrupt flag; interrupts disabled when interrupt flag cleared (IA V2 p83)
+      case 0xFB: alu.flags.I = 1; break;                     // STI                set interrupt flag; external, maskable interrupts enabled at the end of the next instruction (IA V2 p471)
+      case 0xF4: halted = true; break;                       // HLT                Halt (IA V2 p234)
+
       // WAIT = Wait:                       [10011011]
       case 0x9B: // WAIT               check pending unmasked floating-point exceptions (IA V2 p485)
                  // FCLEX              clear floating-point exception flags after checking for pending unmasked floating-point exceptions (IA V2 p135)

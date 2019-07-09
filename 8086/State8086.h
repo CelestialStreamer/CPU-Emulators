@@ -85,6 +85,7 @@ private:
 
    bool segoverride;
    bool halted;
+   bool INTR;
 
    struct BusInterfaceUnit {
       BusInterfaceUnit(State8086* state) : state(state) {}
