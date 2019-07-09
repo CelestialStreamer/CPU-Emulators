@@ -6,11 +6,7 @@ public:
    Memory();
    ~Memory();
 
-   template<typename T> T getmem(int address) { return 0; }
-   template<typename T> T getmem(int address, int offset) { return 0; }
-
-   template<typename T> void putmem(int address, T value) {}
-   template<typename T> void putmem(int address, int offset, T value) {}
+   template<typename T> T& mem(int address) { return *(T*)(memory[address]); }
 private:
-   uint8_t *mem;
+   uint8_t *memory;
 };
