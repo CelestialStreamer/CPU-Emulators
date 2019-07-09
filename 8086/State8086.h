@@ -83,27 +83,36 @@ private:
    ALU alu;
    Memory * mem;
 
-   uint16_t disp16;
-   uint16_t segment;
    bool segoverride;
    bool halted;
 
-   struct ModRegRm {
-      ModRegRm(State8086* state) : state(state) {}
-      int mode;
-      int reg;
-      int rm;
-      void operator()();
+   struct BusInterfaceUnit {
+      BusInterfaceUnit(State8086* state) : state(state) {}
+
+      void fetchModRM(); // Read immediate byte and parse as ModR/M byte
+
+      int ea(); // Effective address using address mode from mod field in ModR/M byte
+      template<typename T> T& reg(); // register access (according to reg field in ModR/M byte)
+      template<typename T> T& rm(); // register/memory access (according to r/m field in ModR/M byte)
+
+      // access memory using default segment
+      template<typename T> T& mem(int offset) { return mem<T>(segment, offset); }
+      // access memory using specific segment
+      template<typename T> T& mem(int segment, int offset) { return state->mem->mem<T>((segment << 4) + offset); }
+
+      // Parts of the ModR/M byte
+      int _mode;
+      struct {
+         int _rm, ext;
+      };
+      int _reg;
+
+      int segment; // Segment of memory addressed
+
    private:
       State8086* state;
-   } modregrm = ModRegRm(this);
-
-   // register/memory access
-   template<typename T> T    readrm();
-   template<typename T> void writerm(T value);
-
-   // direct register access
-   template<typename T> T& fetchreg(unsigned int regid);
+      int disp16; // displacement of immediate value after ModR/M byte to be used for calculating the effective address
+   } BIU = BusInterfaceUnit(this);
 
    // Fetches the data pointed to by IP
    template<typename T> T imm();
@@ -111,26 +120,17 @@ private:
    void push(uint16_t value);
    uint16_t pop();
    void interrupt(unsigned int vector);
-   int getea();
 };
-
 
 template<typename T>
 T State8086::imm() {
-   T value = mem->getmem<T>(segRegs.CS, IP);
+   T value = BIU.mem<T>(segRegs.CS, IP);
    IP += sizeof(T);
    return value;
 }
 
 template<typename T>
-T State8086::readrm() {
-   if (modregrm.mode == 3) return fetchreg<T>(modregrm.rm);
-   else                    return mem->getmem<T>(getea());
+T& State8086::BusInterfaceUnit::rm() {
+   if (_mode == 3) return reg<T>();
+   else            return state->mem->mem<T>(ea());
 }
-
-template<typename T>
-void State8086::writerm(T value) {
-   if (modregrm.mode == 3) fetchreg<T>(modregrm.rm) = value;
-   else                    mem->putmem(getea(), value);
-}
-
