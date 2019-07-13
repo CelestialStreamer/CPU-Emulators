@@ -12,14 +12,7 @@
 // Reserved IO space:
 //  0x00f8 -  0x00ff (8 bytes)
 class State8086 {
-public:
-   State8086(Memory*, IO*);
-   ~State8086();
-
-   // Reset/clear alu/segment flags, IP, and leave halt state if in halt state
-   void reset();
-   void externalInterrupt(unsigned int vector);
-   void run(unsigned int runtime);
+private:
 
    /// REGISTERS ///
    // The 8086 has eight 16-bit general purpose registers divided into two groups:
@@ -52,7 +45,6 @@ public:
    } pi_regs;
 
    // The megabyte of memory space is divided into logical segments of up to 64k bytes each.
-
    // 4 16-bit special purpose registers
    struct SegmentRegisters { // Segment Registers
       // Instructions are fetched from this segment
@@ -63,75 +55,113 @@ public:
       uint16_t SS; // Stack segment
       // Current data segment; it generally contains program variables
       uint16_t DS; // Data segment
-      // 0 => ES
-      // 1 => CS
-      // 2 => SS
-      // 3 => DS
-      uint16_t& operator [] (uint8_t regid) {
-         assert(regid <= 3);
-         return ((uint16_t*)this)[regid];
-      }
    } segRegs;
 
    // The instruction pointer points to the next instruction.
    // This value is can be saved on the stack and later restored
    uint16_t IP; // Instruction Pointer
 
+   /// ModR/M ///
+   // Parts of the ModR/M byte
+   int _mode;
+   struct { int _rm, ext; };
+   int _reg;
+   // Not part of the ModR/M byte, but part of processing things related to the byte
+   int disp16; // displacement of immediate value after ModR/M byte to be used for calculating the effective address
+   int segment; // Segment of memory addressed
+   bool segoverride;
 
-private:
+   Memory* memory;
    IO * io;
    ALU alu;
-   Memory * mem;
 
-   bool segoverride;
    bool halted;
+
+public:
+   State8086(Memory*, IO*);
+   ~State8086();
+
+   // Reset/clear alu/segment flags, IP, and leave halt state if in halt state
+   void reset();
+   void externalInterrupt(unsigned int vector);
+   void run(unsigned int runtime);
+
    bool INTR;
 
-   struct BusInterfaceUnit {
-      BusInterfaceUnit(State8086* state) : state(state) {}
-
-      void fetchModRM(); // Read immediate byte and parse as ModR/M byte
-
-      int ea(); // Effective address using address mode from mod field in ModR/M byte
-      template<typename T> T& reg(); // register access (according to reg field in ModR/M byte)
-      template<typename T> T& rm(); // register/memory access (according to r/m field in ModR/M byte)
-
-      // access memory using default segment
-      template<typename T> T& mem(int offset) { return mem<T>(segment, offset); }
-      // access memory using specific segment
-      template<typename T> T& mem(int segment, int offset) { return state->mem->mem<T>((segment << 4) + offset); }
-
-      // Parts of the ModR/M byte
-      int _mode;
-      struct {
-         int _rm, ext;
-      };
-      int _reg;
-
-      int segment; // Segment of memory addressed
-
-   private:
-      State8086* state;
-      int disp16; // displacement of immediate value after ModR/M byte to be used for calculating the effective address
-   } BIU = BusInterfaceUnit(this);
-
-   // Fetches the data pointed to by IP
+private:
+   // Fetches the data pointed to by IP in current code segment
    template<typename T> T imm();
+
+   /// ModR/M ///
+   void fetchModRM(); // Read immediate byte and parse as ModR/M byte
+
+   int ea(); // Effective address using address mode from mod field in ModR/M byte
+   template<typename T> T& reg(); // register access (according to reg field in ModR/M byte)
+   template<typename T> T& rm(); // register/memory access (according to r/m field in ModR/M byte)
+
+   // access memory using default segment
+   template<typename T> T& mem(int offset) { return mem<T>(segment, offset); }
+   // access memory using specific segment
+   template<typename T> T& mem(int segment, int offset) { return memory->mem<T>((segment << 4) + offset); }
+
 
    void push(uint16_t value);
    uint16_t pop();
+
+   void callFar(uint16_t newIP, uint16_t newCS) {
+      push(segRegs.CS); push(IP);
+      jumpFar(newIP, newCS);
+   }
+   void callfar(unsigned int address) {
+      push(segRegs.CS); push(IP);
+      jumpFar(address);
+   }
+   void jumpFar(unsigned int address) {
+      IP = mem<uint16_t>(address);
+      segRegs.CS = mem<uint16_t>(address + 2);
+   }
+   void jumpFar(uint16_t newIP, uint16_t newCS) {
+      IP = newIP;
+      segRegs.CS = newCS;
+   }
+   void returnFar(uint16_t adjustSP = 0) {
+      IP = pop(); segRegs.CS = pop() + adjustSP;
+   }
+
+   void callnear(uint16_t offset) {
+      push(IP);
+      jumpNear(offset);
+   }
+   void jumpShort(uint16_t jump) {
+      IP += jump;
+   }
+   void jumpNear(uint16_t offset) {
+      IP = offset;
+   }
+   void returnNear(uint16_t adjustSP = 0) {
+      IP = pop();
+      segRegs.CS += adjustSP;
+   }
+
+
+   void loadFarPointer(uint16_t& segment, uint16_t& offset, int address) {
+      offset = mem<uint16_t>(address);
+      segment = mem<uint16_t>(address + 2);
+   }
+
    void interrupt(unsigned int vector);
 };
 
+
 template<typename T>
 T State8086::imm() {
-   T value = BIU.mem<T>(segRegs.CS, IP);
+   T value = mem<T>(segRegs.CS, IP);
    IP += sizeof(T);
    return value;
 }
 
 template<typename T>
-T& State8086::BusInterfaceUnit::rm() {
+T& State8086::rm() {
    if (_mode == 3) return reg<T>();
-   else            return state->mem->mem<T>(ea());
+   else            return memory->mem<T>(ea());
 }
