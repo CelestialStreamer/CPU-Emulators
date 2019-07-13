@@ -111,21 +111,6 @@ public:
       return res;
    }
 
-   template<typename T>
-   T arithm(unsigned int i, T op1, T op2) {
-      assert(i < 8);
-      switch (i) {
-      case 0: return add<T>(op1, op2);
-      case 1: return _or<T>(op1, op2);
-      case 2: return adc<T>(op1, op2);
-      case 3: return sbb<T>(op1, op2);
-      case 4: return _and<T>(op1, op2);
-      case 5: return sub<T>(op1, op2);
-      case 6: return _xor<T>(op1, op2);
-      default:return sub<T>(op1, op2);
-      }
-   }
-
    bool condition(int test);
 
    // ROL: (IA V2 3-394) (8086 Family 2-40)
@@ -424,21 +409,6 @@ public:
       return dest;
    }
 
-   template<typename T>
-   T rotate(unsigned int i, T dest, unsigned int cnt) {
-      assert(i < 8);
-      switch (i) {
-      case 0: return ROL(dest, cnt);
-      case 1: return ROR(dest, cnt);
-      case 2: return RCL(dest, cnt);
-      case 3: return RCR(dest, cnt);
-      case 4: return SHL(dest, cnt);
-      case 5: return SHR(dest, cnt);
-      case 6: assert(false); return 0; // Not defined
-      default: return SAR(dest, cnt);
-      }
-   }
-
    // DAA (IA V2 3-79) (8086 Family 2-36)
    //    Adjusts the sum of two packed BCD values to create a packed BCD result
    // Operation:
@@ -509,6 +479,36 @@ public:
       setFlags<uint8_t>(AL); // Z, S, P  flags will be undefined (per spec)
    }
 
+   void AAS(uint8_t &AH, uint8_t &AL) {
+      if (((AL & 0xF) > 9) || (flags.A == 1)) {
+         AL -= 6;
+         AH -= 1;
+         flags.A = 1;
+         flags.C = 1;
+      } else {
+         flags.A = 0;
+         flags.C = 0;
+      }
+
+      AL &= 0x0F;
+   }
+
+   void DAS(uint8_t &AL) {
+      if (((AL & 0xF) > 9) || (flags.A == 1)) {
+         uint16_t temp = (uint16_t)AL - 6;
+         AL = temp & 0xFF;
+         flags.C = (flags.C || (temp & 0xFF00)) ? 1 : 0;
+         flags.A = 1;
+      } else
+         flags.A = 0;
+
+      if (((AL & 0xF0) > 0x90) || (flags.C == 1)) {
+         AL -= 0x60;
+         flags.C = 1;
+      } else
+         flags.C = 0;
+   }
+
    // INC: (IA V2 3-213) (8086 Family 2-35)
    //    Adds 1 to the destination operand, while preserving the state of the CF flag.
    // Operation:
@@ -537,6 +537,37 @@ public:
       return result;
    }
 
+   // NOT: (IA V2 3-311)
+   //    Performs a bitwise NOT operation (each 1 is cleared to 0, and each 0 is set to 1) on the destination operand and stores the result in the destination operand location.
+   // Operation:
+   //    DEST <- NOT DEST
+   // Flags:
+   //    None
+   template<typename T>
+   void NOT(T& op) {
+      op = ~op;
+   }
+
+   template<typename T>
+   void NEG(T& op) {
+      op = -op;
+      setFlags<uint16_t>(op);
+      setLogicFlags<uint16_t>(op);
+      flags.C = op == 0 ? 0 : 1;
+   }
+
+   template<typename T>
+   void MUL(T& overflow, T& op1, T op2);
+
+   template<typename T>
+   void IMUL(T& overflow, T& op1, T op2);
+
+   template<typename T>
+   bool DIV(T& overflow, T& op1, T op2);
+
+   template<typename T>
+   bool IDIV(T& overflow, T& op1, T op2);
+
    // Compute Z,S,P flags for arithmetic or logical operations
    template<typename T>
    void setFlags(T value) {
@@ -555,7 +586,7 @@ public:
       /// Source: 8086 Family 2-35
    }
 
-   // Compute C,O,A flags for arithmetic operations
+   // Compute C,O,A flags for arithmetic operations (along with Z,S,P flags)
    template<typename T>
    void setArithemticFlags(T op1, T op2, unsigned int res) {
       const T signBit = ~((T)(-1) >> 1); // 0x80..0 (high-order bit mask)
