@@ -72,3 +72,99 @@ template<> uint16_t ALU::Flags::get() {
       | (D << 0xA)
       | (O << 0xB));
 }
+
+template<>
+void ALU::MUL(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
+   union { uint32_t full; struct { uint16_t high; uint16_t low; }; } temp;
+   temp.full = (int)op1 * (int)op2;
+   overflow = temp.high;
+   op1 = temp.low;
+   flags.C = flags.O = temp.high == 0 ? 0 : 1;
+   //// S,Z,A,P flags are undefined
+}
+
+template<>
+void ALU::MUL(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
+   union { uint16_t full; struct { uint8_t high; uint8_t low; }; } temp;
+   temp.full = (int)op1 * (int)op2;
+   overflow = temp.high;
+   op1 = temp.low;
+   flags.C = flags.O = temp.high == 0 ? 0 : 1;
+   //// S,Z,A,P flags are undefined
+}
+
+template<>
+void ALU::IMUL(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
+   union { uint32_t full; struct { uint16_t high; uint16_t low; }; } temp;
+   temp.full = (int)op1 * (int)op2;
+   overflow = temp.high;
+   op1 = temp.low;
+   flags.C = flags.O = temp.high == 0 || temp.high == 0xffff ? 0 : 1;
+   // S,Z,A,P flags are undefined
+}
+
+template<>
+void ALU::IMUL(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
+   union { uint16_t full; struct { uint8_t high; uint8_t low; }; } temp;
+   temp.full = (int)op1 * (int)op2;
+   overflow = temp.high;
+   op1 = temp.low;
+   flags.C = flags.O = temp.high == 0 || temp.high == 0xff ? 0 : 1;
+   // S,Z,A,P flags are undefined
+}
+
+template<>
+bool ALU::DIV(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
+   union { uint32_t full; struct { uint16_t high; uint16_t low; }; } temp;
+   temp.high = overflow;
+   temp.low = op1;
+   if (op2 == 0) return false;
+   temp.full /= op2;
+   if (temp.full > 0xffff) return false;
+   overflow = temp.full % op2;
+   op1 = temp.low;
+   // all flags are undefined. so fuck 'em
+   return true;
+}
+
+template<>
+bool ALU::DIV(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
+   union { uint16_t full; struct { uint8_t high; uint8_t low; }; } temp;
+   temp.high = overflow;
+   temp.low = op1;
+   if (op2 == 0) return false;
+   temp.full /= op2;
+   if (temp.full > 0xff) return false;
+   overflow = temp.full % op2;
+   op1 = temp.low;
+   // all flags are undefined. so fuck 'em
+   return true;
+}
+
+template<>
+bool ALU::IDIV(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
+   union { uint32_t full; struct { uint16_t high; uint16_t low; }; } temp;
+   temp.high = overflow;
+   temp.low = op1;
+   if (op2 == 0) return false;
+   temp.full /= op2;
+   if (temp.full > 0xffff || temp.full < 0x8000) return false;
+   overflow = temp.full % op2;
+   op1 = temp.low;
+   // all flags are undefined. so fuck 'em
+   return true;
+}
+
+template<>
+bool ALU::IDIV(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
+   union { uint16_t full; struct { uint8_t high; uint8_t low; }; } temp;
+   temp.high = overflow;
+   temp.low = op1;
+   if (op2 == 0) return false;
+   temp.full /= op2;
+   if (temp.full > 0xff || temp.full < 0x80) return false;
+   overflow = temp.full % op2;
+   op1 = temp.low;
+   // all flags are undefined. so fuck 'em
+   return true;
+}
