@@ -1,5 +1,5 @@
 #pragma once
-#include <cstdint>
+#include "Common.h"
 
 class Memory {
 public:
@@ -8,5 +8,5 @@ public:
 
    template<typename T> T& mem(int address) { return *(T*)(memory[address]); }
 private:
-   uint8_t *memory;
+   byte *memory;
 };

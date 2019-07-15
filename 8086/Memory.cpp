@@ -4,7 +4,7 @@
 
 Memory::Memory()
 {
-   memory = new uint8_t[0x10'0000]; // Megabyte of memory
+   memory = new byte[0x10'0000]; // Megabyte of memory
 }
 
 

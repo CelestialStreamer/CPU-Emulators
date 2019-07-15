@@ -1,10 +1,10 @@
 #pragma once
+#include "Common.h"
 #include "alu.h"
 #include "IO.h"
 #include "Memory.h"
 
 #include <cassert> /* assert */
-#include <cstdint> /* uint8_t uint16_t */
 
 // Reserved memory space:
 // 0x00000 - 0x0007f (128 bytes)
@@ -22,10 +22,10 @@ private:
    struct DRegisters { // Data Registers
       // A register which allows access to high byte, low byte, or entire byte
       typedef union {
-         uint16_t x; // word (2 bytes)
+         word x; // word (2 bytes)
          struct {
-            uint8_t l; // low byte
-            uint8_t h; // high byte
+            byte l; // low byte
+            byte h; // high byte
          };
       } Register;
       Register a; // Accumulator
@@ -37,29 +37,29 @@ private:
 
    // 4 16-bit general purpose registers
    struct PIRegisters { // Pointer and Index Registers
-      uint16_t SI; // Source Index
-      uint16_t DI; // Destination Index
-      uint16_t BP; // Base Pointer
+      word SI; // Source Index
+      word DI; // Destination Index
+      word BP; // Base Pointer
       // Points to the top of the stack, or rather the offset from the top of the stack
-      uint16_t SP; // Stack Pointer
+      word SP; // Stack Pointer
    } pi_regs;
 
    // The megabyte of memory space is divided into logical segments of up to 64k bytes each.
    // 4 16-bit special purpose registers
    struct SegmentRegisters { // Segment Registers
       // Instructions are fetched from this segment
-      uint16_t ES; // Extra segment
+      word ES; // Extra segment
       // Points to the current stack segment; stack operations are performed on this segment
-      uint16_t CS; // Code segment
+      word CS; // Code segment
       // Current extra segment; it also is typically used for data storage
-      uint16_t SS; // Stack segment
+      word SS; // Stack segment
       // Current data segment; it generally contains program variables
-      uint16_t DS; // Data segment
+      word DS; // Data segment
    } segRegs;
 
    // The instruction pointer points to the next instruction.
    // This value is can be saved on the stack and later restored
-   uint16_t IP; // Instruction Pointer
+   word IP; // Instruction Pointer
 
    /// ModR/M ///
    // Parts of the ModR/M byte
@@ -100,15 +100,14 @@ private:
    template<typename T> T& rm(); // register/memory access (according to r/m field in ModR/M byte)
 
    // access memory using default segment
-   template<typename T> T& mem(int offset) { return mem<T>(segment, offset); }
+   template<typename T> T& mem(int index) { return mem<T>(segment, index); }
    // access memory using specific segment
-   template<typename T> T& mem(int segment, int offset) { return memory->mem<T>((segment << 4) + offset); }
+   template<typename T> T& mem(int segment, int index) { return memory->mem<T>((segment << 4) + index); }
 
+   void push(word value);
+   word pop();
 
-   void push(uint16_t value);
-   uint16_t pop();
-
-   void callFar(uint16_t newIP, uint16_t newCS) {
+   void callFar(word newIP, word newCS) {
       push(segRegs.CS); push(IP);
       jumpFar(newIP, newCS);
    }
@@ -117,36 +116,36 @@ private:
       jumpFar(address);
    }
    void jumpFar(unsigned int address) {
-      IP = mem<uint16_t>(address);
-      segRegs.CS = mem<uint16_t>(address + 2);
+      IP = mem<word>(address);
+      segRegs.CS = mem<word>(address + 2);
    }
-   void jumpFar(uint16_t newIP, uint16_t newCS) {
+   void jumpFar(word newIP, word newCS) {
       IP = newIP;
       segRegs.CS = newCS;
    }
-   void returnFar(uint16_t adjustSP = 0) {
+   void returnFar(word adjustSP = 0) {
       IP = pop(); segRegs.CS = pop() + adjustSP;
    }
 
-   void callnear(uint16_t offset) {
+   void callnear(word offset) {
       push(IP);
       jumpNear(offset);
    }
-   void jumpShort(uint16_t jump) {
+   void jumpShort(word jump) {
       IP += jump;
    }
-   void jumpNear(uint16_t offset) {
+   void jumpNear(word offset) {
       IP = offset;
    }
-   void returnNear(uint16_t adjustSP = 0) {
+   void returnNear(word adjustSP = 0) {
       IP = pop();
       segRegs.CS += adjustSP;
    }
 
 
-   void loadFarPointer(uint16_t& segment, uint16_t& offset, int address) {
-      offset = mem<uint16_t>(address);
-      segment = mem<uint16_t>(address + 2);
+   void loadFarPointer(word& segment, word& index, int address) {
+      index = mem<word>(address);
+      segment = mem<word>(address + 2);
    }
 
    void interrupt(unsigned int vector);

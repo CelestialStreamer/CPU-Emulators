@@ -25,7 +25,7 @@ bool ALU::condition(int test) {
    }
 }
 
-template<> void ALU::Flags::set(uint8_t x) {
+template<> void ALU::Flags::set(byte x) {
    C = x & (1 << 0x0) ? 1 : 0;
    P = x & (1 << 0x2) ? 1 : 0;
    A = x & (1 << 0x4) ? 1 : 0;
@@ -33,7 +33,7 @@ template<> void ALU::Flags::set(uint8_t x) {
    S = x & (1 << 0x7) ? 1 : 0;
 }
 
-template<> void ALU::Flags::set(uint16_t x) {
+template<> void ALU::Flags::set(word x) {
    C = x & (1 << 0x0) ? 1 : 0;
    P = x & (1 << 0x2) ? 1 : 0;
    A = x & (1 << 0x4) ? 1 : 0;
@@ -45,10 +45,10 @@ template<> void ALU::Flags::set(uint16_t x) {
    O = x & (1 << 0xB) ? 1 : 0;
 }
 
-template<> uint8_t ALU::Flags::get() {
+template<> byte ALU::Flags::get() {
    // bit 1 is always set in modern CPUs (IA V1 p51:Figure 3-7)
    // bit 1 is undefined in original (8086 Family p2-33:Figure 2-32)
-   return (uint8_t)(
+   return (byte)(
       2 // Use modern standard
       | (C << 0x0)
       | (P << 0x2)
@@ -57,10 +57,10 @@ template<> uint8_t ALU::Flags::get() {
       | (S << 0x7));
 }
 
-template<> uint16_t ALU::Flags::get() {
+template<> word ALU::Flags::get() {
    // bit 1 is always set in modern CPUs (IA V1 p51:Figure 3-7)
    // bit 1 is undefined in original (8086 Family p2-33:Figure 2-32)
-   return (uint16_t)(
+   return (word)(
       2 // Use modern standard
       | (C << 0x0)
       | (P << 0x2)
@@ -74,8 +74,8 @@ template<> uint16_t ALU::Flags::get() {
 }
 
 template<>
-void ALU::MUL(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
-   union { uint32_t full; struct { uint16_t high; uint16_t low; }; } temp;
+void ALU::MUL(word& overflow, word& op1, word op2) {
+   union { uint32_t full; struct { word high; word low; }; } temp;
    temp.full = (int)op1 * (int)op2;
    overflow = temp.high;
    op1 = temp.low;
@@ -84,8 +84,8 @@ void ALU::MUL(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
 }
 
 template<>
-void ALU::MUL(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
-   union { uint16_t full; struct { uint8_t high; uint8_t low; }; } temp;
+void ALU::MUL(byte& overflow, byte& op1, byte op2) {
+   union { word full; struct { byte high; byte low; }; } temp;
    temp.full = (int)op1 * (int)op2;
    overflow = temp.high;
    op1 = temp.low;
@@ -94,8 +94,8 @@ void ALU::MUL(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
 }
 
 template<>
-void ALU::IMUL(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
-   union { uint32_t full; struct { uint16_t high; uint16_t low; }; } temp;
+void ALU::IMUL(word& overflow, word& op1, word op2) {
+   union { uint32_t full; struct { word high; word low; }; } temp;
    temp.full = (int)op1 * (int)op2;
    overflow = temp.high;
    op1 = temp.low;
@@ -104,8 +104,8 @@ void ALU::IMUL(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
 }
 
 template<>
-void ALU::IMUL(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
-   union { uint16_t full; struct { uint8_t high; uint8_t low; }; } temp;
+void ALU::IMUL(byte& overflow, byte& op1, byte op2) {
+   union { word full; struct { byte high; byte low; }; } temp;
    temp.full = (int)op1 * (int)op2;
    overflow = temp.high;
    op1 = temp.low;
@@ -114,8 +114,8 @@ void ALU::IMUL(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
 }
 
 template<>
-bool ALU::DIV(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
-   union { uint32_t full; struct { uint16_t high; uint16_t low; }; } temp;
+bool ALU::DIV(word& overflow, word& op1, word op2) {
+   union { uint32_t full; struct { word high; word low; }; } temp;
    temp.high = overflow;
    temp.low = op1;
    if (op2 == 0) return false;
@@ -128,8 +128,8 @@ bool ALU::DIV(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
 }
 
 template<>
-bool ALU::DIV(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
-   union { uint16_t full; struct { uint8_t high; uint8_t low; }; } temp;
+bool ALU::DIV(byte& overflow, byte& op1, byte op2) {
+   union { word full; struct { byte high; byte low; }; } temp;
    temp.high = overflow;
    temp.low = op1;
    if (op2 == 0) return false;
@@ -142,8 +142,8 @@ bool ALU::DIV(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
 }
 
 template<>
-bool ALU::IDIV(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
-   union { uint32_t full; struct { uint16_t high; uint16_t low; }; } temp;
+bool ALU::IDIV(word& overflow, word& op1, word op2) {
+   union { uint32_t full; struct { word high; word low; }; } temp;
    temp.high = overflow;
    temp.low = op1;
    if (op2 == 0) return false;
@@ -156,8 +156,8 @@ bool ALU::IDIV(uint16_t& overflow, uint16_t& op1, uint16_t op2) {
 }
 
 template<>
-bool ALU::IDIV(uint8_t& overflow, uint8_t& op1, uint8_t op2) {
-   union { uint16_t full; struct { uint8_t high; uint8_t low; }; } temp;
+bool ALU::IDIV(byte& overflow, byte& op1, byte op2) {
+   union { word full; struct { byte high; byte low; }; } temp;
    temp.high = overflow;
    temp.low = op1;
    if (op2 == 0) return false;

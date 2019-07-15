@@ -1,11 +1,10 @@
 #pragma once
-
-#include <cstdint>
+#include "Common.h"
 #include <cassert>
 
 
-template<typename T> inline uint8_t MSB(T x) { return ~((T)(-1) >> 1) & x ? 1 : 0; }
-template<typename T> inline uint8_t LSB(T x) { return x & 1 ? 1 : 0; }
+template<typename T> inline T MSB(T x) { return ~((T)(-1) >> 1) & x ? 1 : 0; }
+template<typename T> inline T LSB(T x) { return x & 1 ? 1 : 0; }
 
 class ALU {
 public:
@@ -429,9 +428,9 @@ public:
    //    FI
    // Flags:
    //    C, A, S, Z, P, O
-   uint8_t DAA(uint8_t AL) {
+   byte DAA(byte AL) {
       if (((AL & 0xF) > 9) || (flags.A == 1)) {
-         uint16_t temp = (uint16_t)AL + 6;
+         word temp = (word)AL + 6;
          AL = temp & 0xff;
          flags.C = (flags.C || (temp & 0xFF00)) ? 1 : 0; // detect carry out from AL + 6
          flags.A = 1;
@@ -444,7 +443,7 @@ public:
       } else
          flags.C = 0;
 
-      setFlags<uint8_t>(AL); // Take care of Z,S,P flags
+      setFlags<byte>(AL); // Take care of Z,S,P flags
       return AL;
    }
 
@@ -464,7 +463,7 @@ public:
    //    AL <- AL AND 0FH
    // Flags:
    //    A, C, O, S, Z, P
-   void AAA(uint8_t &AL, uint8_t &AH) {
+   void AAA(byte &AL, byte &AH) {
       if (((AL & 0xF) > 9) || (flags.A == 1)) {
          AL += 6;
          ++AH;
@@ -476,10 +475,10 @@ public:
       }
       AL &= 0xF;
 
-      setFlags<uint8_t>(AL); // Z, S, P  flags will be undefined (per spec)
+      setFlags<byte>(AL); // Z, S, P  flags will be undefined (per spec)
    }
 
-   void AAS(uint8_t &AH, uint8_t &AL) {
+   void AAS(byte &AH, byte &AL) {
       if (((AL & 0xF) > 9) || (flags.A == 1)) {
          AL -= 6;
          AH -= 1;
@@ -493,9 +492,9 @@ public:
       AL &= 0x0F;
    }
 
-   void DAS(uint8_t &AL) {
+   void DAS(byte &AL) {
       if (((AL & 0xF) > 9) || (flags.A == 1)) {
-         uint16_t temp = (uint16_t)AL - 6;
+         word temp = (word)AL - 6;
          AL = temp & 0xFF;
          flags.C = (flags.C || (temp & 0xFF00)) ? 1 : 0;
          flags.A = 1;
@@ -551,8 +550,8 @@ public:
    template<typename T>
    void NEG(T& op) {
       op = -op;
-      setFlags<uint16_t>(op);
-      setLogicFlags<uint16_t>(op);
+      setFlags<word>(op);
+      setLogicFlags<word>(op);
       flags.C = op == 0 ? 0 : 1;
    }
 
