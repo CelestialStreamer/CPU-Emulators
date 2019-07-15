@@ -1,10 +1,11 @@
 #pragma once
-#include "Common.h"
 #include "alu.h"
+#include "Common.h"
 #include "IO.h"
 #include "Memory.h"
 
 #include <cassert> /* assert */
+
 
 // Reserved memory space:
 // 0x00000 - 0x0007f (128 bytes)

@@ -1,6 +1,8 @@
 #include "State8086.h"
+
 #include <algorithm>
 #include <cassert>
+
 
 enum RepeatType {
    None, Equal, NEqual
