@@ -150,6 +150,8 @@ private:
    }
 
    void interrupt(unsigned int vector);
+
+   void disassembleOp();
 };
 
 

@@ -121,6 +121,7 @@
     <ClCompile Include="Memory.cpp" />
     <ClCompile Include="Source.cpp" />
     <ClCompile Include="State8086.cpp" />
+    <ClCompile Include="State8086DisassembleOp.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="alu.h" />
