@@ -1,14 +1,12 @@
 #pragma once
 #include <cstdint>
 
-class IO
-{
+class IO {
 public:
    uint8_t read(uint8_t port);
    void write(uint8_t port, uint8_t value);
 
-   struct Read1
-   {
+   struct Read1 {
       uint8_t coin : 1; // Coin (0 when active)   
       uint8_t player2Start : 1;
       uint8_t player1Start : 1;
@@ -18,8 +16,7 @@ public:
       uint8_t player1joystickRight : 1;
       uint8_t fill2 : 1; // ?
    } Read1;
-   struct Read2
-   {
+   struct Read2 {
       uint8_t lives : 2; // Dipswitch number of lives (0:3,1:4,2:5,3:6)
       uint8_t tilt : 1; // Tilt 'button'
       uint8_t bonusLife : 1; // Dipswitch bonus life at 1:1000,0:1500    
