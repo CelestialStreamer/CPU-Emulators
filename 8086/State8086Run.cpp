@@ -57,6 +57,8 @@ void State8086::run(unsigned int runtime)
       } else if (alu.flags.T) //
          interrupt(0); // which fucking vector is it?
 
+      disassembleOp();
+
       saveIP = IP; // Used if repeat prefix is present (to go back and execute instruction again)
       repeatType = None;
       // The default segment register is SS for the effective addresses
