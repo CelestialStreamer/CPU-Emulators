@@ -11,19 +11,29 @@ void State8086::run(unsigned int runtime)
    enum RepeatType { None, Equal, NEqual } repeatType;
 
    auto REP = [&](std::function<void()> instruction) {
-      if (repeatType == None) {
+      switch (repeatType) {
+      case None:
          instruction();
          return;
+
+      case Equal:
+         while (d_regs.c.x != 0) {
+            // handle interrupts, if any
+            instruction();
+            d_regs.c.x--;
+            if (alu.flags.Z == 0) break;
+         };
+         return;
+
+      case NEqual:
+         while (d_regs.c.x != 0) {
+            // handle interrupts, if any
+            instruction();
+            d_regs.c.x--;
+            if (alu.flags.Z == 1) break;
+         };
+         return;
       }
-      while (d_regs.c.x != 0) {
-         // handle interrupts, if any
-         instruction();
-         d_regs.c.x--;
-         if ((repeatType == Equal) && (alu.flags.Z == 0))
-            break;
-         if (alu.flags.Z == 1)
-            break;
-      };
    };
 
    for (unsigned int count = 0; count < runtime;) {
@@ -71,32 +81,10 @@ void State8086::run(unsigned int runtime)
 
             // REP = Repeat
             // [1111001 z]
-         case 0xF2: // REPNE
-                    // This is a prefix byte
-                    // Opcode   Instruction          Description (IA V2 p434)
-                    // F2 A6    REPNE CMPS m8,m8     Find matching bytes in ES:[(E)DI] and DS:[(E)SI]
-                    // F2 A7    REPNE CMPS m16,m16   Find matching words in ES:[(E)DI] and DS:[(E)SI]
-                    // F2 AE    REPNE SCAS m8        Find AL, starting at ES:[(E)DI]
-                    // F2 AF    REPNE SCAS m16       Find AX, starting at ES:[(E)DI]
+         case 0xF2: // REPNE (IA V2 p434)
             repeatType = NEqual;
             break;
-         case 0xF3: // REP REPE
-                    // This is a prefix byte
-                    // Opcode   Instruction          Description (IA V2 p434)
-                    // F3 6C    REP INS r/m8, DX     Input (E)CX bytes from port DX into ES:[(E)DI]
-                    // F3 6D    REP INS r/m16,DX     Input (E)CX words from port DX into ES:[(E)DI]
-                    // F3 6E    REP OUTS DX,r/m8     Output (E)CX bytes from DS:[(E)SI] to port DX
-                    // F3 6F    REP OUTS DX,r/m16    Output (E)CX words from DS:[(E)SI] to port DX
-                    // F3 A4    REP MOVS m8,m8       Move (E)CX bytes from DS:[(E)SI] to ES:[(E)DI]
-                    // F3 A5    REP MOVS m16,m16     Move (E)CX words from DS:[(E)SI] to ES:[(E)DI]
-                    // F3 AA    REP STOS m8          Fill (E)CX bytes at ES:[(E)DI] with AL
-                    // F3 AB    REP STOS m16         Fill (E)CX words at ES:[(E)DI] with AX
-                    // F3 AC    REP LODS AL          Load (E)CX bytes from DS:[(E)SI] to AL
-                    // F3 AD    REP LODS AX          Load (E)CX words from DS:[(E)SI] to AX
-                    // F3 A6    REPE CMPS m8,m8      Find nonmatching bytes in ES:[(E)DI] and DS:[(E)SI]
-                    // F3 A7    REPE CMPS m16,m16    Find nonmatching words in ES:[(E)DI] and DS:[(E)SI]
-                    // F3 AE    REPE SCAS m8         Find non-AL byte starting at ES:[(E)DI]
-                    // F3 AF    REPE SCAS m16        Find non-AX word starting at ES:[(E)DI]
+         case 0xF3: // REP REPE (IA V2 p434)
             repeatType = Equal;
             break;
 
@@ -799,6 +787,7 @@ void State8086::run(unsigned int runtime)
       // [1010010 w]
       case 0xA4: // MOVS m8,m8         move byte at address DS:(E)SI to address ES:(E)DI (IA V2 p329)
       {
+         // F3 A4    REP MOVS m8,m8       Move (E)CX bytes from DS:[(E)SI] to ES:[(E)DI] (IA V2 p434)
          REP([&] {
             mem<byte>(segRegs.ES, pi_regs.DI) = mem<byte>(segRegs.DS, pi_regs.SI);
             pi_regs.SI += (alu.flags.D == 0) ? 1 : -1;
@@ -808,6 +797,7 @@ void State8086::run(unsigned int runtime)
       }
       case 0xA5: // MOVS m16,m16       move word at address DS:(E)SI to address ES:(E)DI (IA V2 p329)
       {
+         // F3 A5    REP MOVS m16,m16     Move (E)CX words from DS:[(E)SI] to ES:[(E)DI] (IA V2 p434)
          REP([&] {
             mem<word>(segRegs.ES, pi_regs.DI) = mem<word>(segRegs.DS, pi_regs.SI);
             pi_regs.SI += (alu.flags.D == 0) ? 2 : -2;
@@ -819,6 +809,8 @@ void State8086::run(unsigned int runtime)
       // [1010011 w]
       case 0xA6: // CMPS m8,m8         compares byte at address DS:(E)SI with byte at address ES:(E)DI and sets the status flags accordingly (IA V2 p93)
       {
+         // F2 A6    REPNE CMPS m8,m8     Find matching bytes in ES:[(E)DI] and DS:[(E)SI]    (IA V2 p434)
+         // F3 A6    REPE CMPS m8,m8      Find nonmatching bytes in ES:[(E)DI] and DS:[(E)SI] (IA V2 p434)
          REP([&] {
             alu.sub<byte>(
                mem<byte>(segRegs.DS, pi_regs.SI),
@@ -830,6 +822,8 @@ void State8086::run(unsigned int runtime)
       }
       case 0xA7: // CMPS m16,m16       compares word at address DS:(E)SI with word at address ES:(E)DI and sets the status flags accordingly (IA V2 p93)
       {
+         // F2 A7    REPNE CMPS m16,m16   Find matching words in ES:[(E)DI] and DS:[(E)SI]    (IA V2 p434)
+         // F3 A7    REPE CMPS m16,m16    Find nonmatching words in ES:[(E)DI] and DS:[(E)SI] (IA V2 p434)
          REP([&] {
             alu.sub<word>(
                mem<word>(segRegs.DS, pi_regs.SI),
@@ -843,6 +837,8 @@ void State8086::run(unsigned int runtime)
       // [1010111 w]
       case 0xAE: // SCAS m8            compare AL with byte at ES:(E)DI and set status flags (IA V2 p452)
       {
+         // F2 AE    REPNE SCAS m8        Find AL, starting at ES:[(E)DI]         (IA V2 p434)
+         // F3 AE    REPE SCAS m8         Find non-AL byte starting at ES:[(E)DI] (IA V2 p434)
          REP([&] {
             alu.sub<byte>(d_regs.a.l, mem<byte>(segRegs.ES, pi_regs.DI));
             pi_regs.DI += (alu.flags.D == 0) ? 1 : -1;
@@ -851,6 +847,8 @@ void State8086::run(unsigned int runtime)
       }
       case 0xAF: // SCAS m16           compare AX with word at ES:(E)DI and set status flags (IA V2 p452)
       {
+         // F2 AF    REPNE SCAS m16       Find AX, starting at ES:[(E)DI]         (IA V2 p434)
+         // F3 AF    REPE SCAS m16        Find non-AX word starting at ES:[(E)DI] (IA V2 p434)
          REP([&] {
             alu.sub<word>(d_regs.a.x, mem<word>(segRegs.ES, pi_regs.DI));
             pi_regs.DI += (alu.flags.D == 0) ? 2 : -2;
@@ -861,6 +859,7 @@ void State8086::run(unsigned int runtime)
       // [1010110 w]
       case 0xAC: // LODS m8            load byte at address DS:(E)SI into AL (IA V2 p305)
       {
+         // F3 AC    REP LODS AL          Load (E)CX bytes from DS:[(E)SI] to AL (IA V2 p434)
          REP([&] {
             d_regs.a.l = mem<byte>(segRegs.DS, pi_regs.SI);
             pi_regs.SI += (alu.flags.D == 0) ? 1 : -1;
@@ -869,6 +868,7 @@ void State8086::run(unsigned int runtime)
       }
       case 0xAD: // LODS m16           load word at address DS:(E)SI into AX (IA V2 p305)
       {
+         // F3 AD    REP LODS AX          Load (E)CX words from DS:[(E)SI] to AX (IA V2 p434)
          REP([&] {
             d_regs.a.x = mem<word>(segRegs.DS, pi_regs.SI);
             pi_regs.SI += (alu.flags.D == 0) ? 2 : -2;
@@ -879,6 +879,7 @@ void State8086::run(unsigned int runtime)
       // [1010101 w]
       case 0xAA: // STOS m8            store AL at address ES:(E)DI (IA V2 p473)
       {
+         // F3 AA    REP STOS m8          Fill (E)CX bytes at ES:[(E)DI] with AL (IA V2 p434)
          REP([&] {
             mem<byte>(segRegs.DS, pi_regs.SI) = d_regs.a.l;
             pi_regs.SI += (alu.flags.D == 0) ? 1 : -1;
@@ -887,6 +888,7 @@ void State8086::run(unsigned int runtime)
       }
       case 0xAB: // STOS m16           store AX at address ES:(E)DI (IA V2 p473)
       {
+         // F3 AB    REP STOS m16         Fill (E)CX words at ES:[(E)DI] with AX (IA V2 p434)
          REP([&] {
             mem<word>(segRegs.DS, pi_regs.SI) = d_regs.a.x;
             pi_regs.SI += (alu.flags.D == 0) ? 2 : -2;
@@ -1072,6 +1074,7 @@ void State8086::run(unsigned int runtime)
       // Input from Port to String
       case 0x6C: // INS m8,DX          Input byte from I/O port specified in DX into memory location specified in ES:(E)DI (IA V2 p245)
       {
+         // F3 6C    REP INS r/m8, DX     Input (E)CX bytes from port DX into ES:[(E)DI] (IA V2 p434)
          REP([&] {
             mem<byte>(segRegs.ES, pi_regs.DI) = io->read<byte>(d_regs.d.x);
             if (alu.flags.D == 0) pi_regs.DI += 1;
@@ -1081,6 +1084,7 @@ void State8086::run(unsigned int runtime)
       }
       case 0x6D: // INS m16,DX         Input word from I/O port specified in DX into memory location specified in ES:(E)DI (IA V2 p245)
       {
+         // F3 6D    REP INS r/m16,DX     Input (E)CX words from port DX into ES:[(E)DI] (IA V2 p434)
          REP([&] {
             mem<word>(segRegs.ES, pi_regs.DI) = io->read<word>(d_regs.d.x);
             if (alu.flags.D == 0) pi_regs.DI += 2;
