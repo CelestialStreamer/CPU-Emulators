@@ -8,23 +8,19 @@ void State8086::push(word value) { mem<word>(segRegs.SS, (pi_regs.SP -= 2)) = va
 word State8086::pop() { return mem<word>(segRegs.SS, (pi_regs.SP += 2) - 2); }
 
 void State8086::reset() {
-   // Initializes the system as shown in Table 2-4 (8086 Family p2-29:System Reset)
+   /// [I]nitializes the system as shown in Table 2-4. (8086 Family p2-29:System Reset)
    alu.flags.clear();
-
-   // Clear IP and segment registers
    IP = 0;
    segRegs.CS = 0xffff;
    segRegs.DS = 0;
    segRegs.SS = 0;
    segRegs.ES = 0;
 
-   // The processor leaves the halt state upon activation of the RESET line (8086 Family p2-48:HLT)
+   /// The processor leaves the halt state upon activation of the RESET line (8086 Family p2-48:HLT)
    halted = false;
 }
 
-State8086::State8086(Memory* memory, IO* io) : memory(memory), io(io) {
-   reset();
-}
+State8086::State8086(Memory* memory, IO* io) : memory(memory), io(io) { reset(); }
 State8086::~State8086() { delete memory; delete io; }
 void State8086::externalInterrupt(unsigned int vector) {
    if (alu.flags.I)

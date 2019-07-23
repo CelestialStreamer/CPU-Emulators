@@ -6,5 +6,5 @@
 
 
 int main() {
-   State8086 state(new Memory, new IO);
+   State8086 state(new Memory("Microsoft DOS 6.0 (3.5)/Full.img"), new IO);
 }
