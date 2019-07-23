@@ -68,6 +68,7 @@ void State8086::run(unsigned int runtime)
       segment = segRegs.DS;
 
       // Process all prefix byte(s), if there are any
+
       for (bool prefix = true; prefix;) {
          opcode = imm<byte>(); // Grab the next instruction
          count++;
@@ -79,6 +80,11 @@ void State8086::run(unsigned int runtime)
          case 0x2E: segment = segRegs.CS; break; // SEG =CS
          case 0x36: segment = segRegs.SS; break; // SEG =SS
          case 0x3E: segment = segRegs.DS; break; // SEG =DS
+
+            // LOCK = Bus lock prefix
+            // [11110000]
+         case 0xF0: // LOCK               asserts LOCK# signal for duration of the accompanying instruction (IA V2 p303)
+            break; // This is a prefix opcode. This one can probably be ignored since this is not a hardware emulator.
 
             // REP = Repeat
             // [1111001 z]
@@ -139,41 +145,39 @@ void State8086::run(unsigned int runtime)
       case 0xC6: // Move group
                  // /0 MOV r/m8,imm8   move imm8 to r/m8 (IA V2 p316) (8086 Family Table 4-13 page 4-35)
       {
-         fetchModRM();
-         assert(ext == 0); // /1-7 -unused- (8086 Family Table 4-13 page 4-33)
+         fetchModRM(); assert(ext == 0); // /1-7 -unused- (8086 Family Table 4-13 page 4-33)
          rm<byte>() = imm<byte>();
          break;
       }
       case 0xC7: // Move group
                  // /0 MOV r/m16,imm16 move imm16 to r/m16 (IA V2 p316) (8086 Family Table 4-13 page 4-35)
       {
-         fetchModRM();
-         assert(ext == 0); // /1-7 -unused- (8086 Family Table 4-13 page 4-35)
+         fetchModRM(); assert(ext == 0); // /1-7 -unused- (8086 Family Table 4-13 page 4-35)
          rm<word>() = imm<word>();
          break;
       }
 
       // Immediate to register
       // [1011 w reg] [data] [data if w=1]
-      case 0xB0: d_regs.a.l = imm<byte>(); break; // MOV AL             move imm8 to r8 (IA V2 p316)
-      case 0xB1: d_regs.c.l = imm<byte>(); break; // MOV CL             move imm8 to r8 (IA V2 p316)
-      case 0xB2: d_regs.d.l = imm<byte>(); break; // MOV DL             move imm8 to r8 (IA V2 p316)
-      case 0xB3: d_regs.b.l = imm<byte>(); break; // MOV BL             move imm8 to r8 (IA V2 p316)
+      case 0xB0: d_regs.a.l = imm<byte>(); break; // MOV AL,imm8       move imm8 to r8 (IA V2 p316)
+      case 0xB1: d_regs.c.l = imm<byte>(); break; // MOV CL,imm8       move imm8 to r8 (IA V2 p316)
+      case 0xB2: d_regs.d.l = imm<byte>(); break; // MOV DL,imm8       move imm8 to r8 (IA V2 p316)
+      case 0xB3: d_regs.b.l = imm<byte>(); break; // MOV BL,imm8       move imm8 to r8 (IA V2 p316)
 
-      case 0xB4: d_regs.a.h = imm<byte>(); break; // MOV AH             move imm8 to r8 (IA V2 p316)
-      case 0xB5: d_regs.c.h = imm<byte>(); break; // MOV CH             move imm8 to r8 (IA V2 p316)
-      case 0xB6: d_regs.d.h = imm<byte>(); break; // MOV DH             move imm8 to r8 (IA V2 p316)
-      case 0xB7: d_regs.b.h = imm<byte>(); break; // MOV BH             move imm8 to r8 (IA V2 p316)
+      case 0xB4: d_regs.a.h = imm<byte>(); break; // MOV AH,imm8       move imm8 to r8 (IA V2 p316)
+      case 0xB5: d_regs.c.h = imm<byte>(); break; // MOV CH,imm8       move imm8 to r8 (IA V2 p316)
+      case 0xB6: d_regs.d.h = imm<byte>(); break; // MOV DH,imm8       move imm8 to r8 (IA V2 p316)
+      case 0xB7: d_regs.b.h = imm<byte>(); break; // MOV BH,imm8       move imm8 to r8 (IA V2 p316)
 
-      case 0xB8: d_regs.a.x = imm<word>(); break; // MOV AX             move imm16 to r16 (IA V2 p316)
-      case 0xB9: d_regs.c.x = imm<word>(); break; // MOV CX             move imm16 to r16 (IA V2 p316)
-      case 0xBA: d_regs.d.x = imm<word>(); break; // MOV DX             move imm16 to r16 (IA V2 p316)
-      case 0xBB: d_regs.b.x = imm<word>(); break; // MOV BX             move imm16 to r16 (IA V2 p316)
+      case 0xB8: d_regs.a.x = imm<word>(); break; // MOV AX,imm16       move imm16 to r16 (IA V2 p316)
+      case 0xB9: d_regs.c.x = imm<word>(); break; // MOV CX,imm16       move imm16 to r16 (IA V2 p316)
+      case 0xBA: d_regs.d.x = imm<word>(); break; // MOV DX,imm16       move imm16 to r16 (IA V2 p316)
+      case 0xBB: d_regs.b.x = imm<word>(); break; // MOV BX,imm16       move imm16 to r16 (IA V2 p316)
 
-      case 0xBC: pi_regs.SP = imm<word>(); break; // MOV SP             move imm16 to r16 (IA V2 p316)
-      case 0xBD: pi_regs.BP = imm<word>(); break; // MOV BP             move imm16 to r16 (IA V2 p316)
-      case 0xBE: pi_regs.SI = imm<word>(); break; // MOV SI             move imm16 to r16 (IA V2 p316)
-      case 0xBF: pi_regs.DI = imm<word>(); break; // MOV DI             move imm16 to r16 (IA V2 p316)
+      case 0xBC: pi_regs.SP = imm<word>(); break; // MOV SP,imm16       move imm16 to r16 (IA V2 p316)
+      case 0xBD: pi_regs.BP = imm<word>(); break; // MOV BP,imm16       move imm16 to r16 (IA V2 p316)
+      case 0xBE: pi_regs.SI = imm<word>(); break; // MOV SI,imm16       move imm16 to r16 (IA V2 p316)
+      case 0xBF: pi_regs.DI = imm<word>(); break; // MOV DI,imm16       move imm16 to r16 (IA V2 p316)
 
       // Memory to accumulator
       // [1010000 w] [addr-lo] [addr-hi]
@@ -247,8 +251,7 @@ void State8086::run(unsigned int runtime)
       // [10001111] [mod 000 r/m] [(DISP-LO)] [(DISP-HI)]
       case 0x8F: // /0 POP m16            pop top of stack into m16; increment stack pointer (IA V2 p380)
       {
-         fetchModRM();
-         assert(ext == 0); // /1-7 -unused- (8086 Family Table 4-13 page 4-(31-32))
+         fetchModRM(); assert(ext == 0); // /1-7 -unused- (8086 Family Table 4-13 page 4-(31-32))
          rm<word>() = pop();
          break;
       }
@@ -331,6 +334,7 @@ void State8086::run(unsigned int runtime)
       // LEA = Load EA to register
       // [10001101] [mod reg r/m] [(DISP-LO)] [(DISP-HI)]
       case 0x8D: // LEA r16,m          store effective address for m in register r16 (IA V2 p289)
+                 // r16 is from the REG field and m is from the r/m field, right?
       {
          fetchModRM();
          reg<word>() = ea();
@@ -379,40 +383,44 @@ void State8086::run(unsigned int runtime)
       // [00 101 0 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] SUB = Subtract
       // [00 110 0 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] XOR = Exclusive or
       // [00 111 0 d w] [mod reg r/m] [(DISP-LO)] [(DISP-HI)] CMP = Compare
-      case 0x00: fetchModRM(); [this](byte& dest) {dest = alu.add<byte>(dest, reg<byte>()); } (rm<byte>()); break; // ADD r/m8,r8        add r8 to r/m8                       (IA V2 p47)
-      case 0x08: fetchModRM(); [this](byte& dest) {dest = alu._or<byte>(dest, reg<byte>()); } (rm<byte>()); break; // OR  r/m8,r8        r/m8 OR r8                           (IA V2 p343)
-      case 0x10: fetchModRM(); [this](byte& dest) {dest = alu.adc<byte>(dest, reg<byte>()); } (rm<byte>()); break; // ADC r/m8,r8        add with carry byte register to r/m8 (IA V2 p45)
-      case 0x18: fetchModRM(); [this](byte& dest) {dest = alu.sbb<byte>(dest, reg<byte>()); } (rm<byte>()); break; // SBB r/m8,r8        subtract with borrow r8 from r/m8    (IA V2 p450)
-      case 0x20: fetchModRM(); [this](byte& dest) {dest = alu._and<byte>(dest, reg<byte>()); }(rm<byte>()); break; // AND r/m8,r8        r/m8 AND r8                          (IA V2 p49)
-      case 0x28: fetchModRM(); [this](byte& dest) {dest = alu.sub<byte>(dest, reg<byte>()); } (rm<byte>()); break; // SUB r/m8,r8        subtract r8 from r/m8                (IA V2 p478)
-      case 0x30: fetchModRM(); [this](byte& dest) {dest = alu._xor<byte>(dest, reg<byte>()); }(rm<byte>()); break; // XOR r/m8,r8        r/m8 XOR r8                          (IA V2 p496)
+      case 0x00: fetchModRM(); [&](byte& dest) {dest = alu.add <byte>(dest, reg<byte>()); }(rm<byte>()); break; // ADD r/m8,r8        add r8 to r/m8                       (IA V2 p47)
+      case 0x01: fetchModRM(); [&](word& dest) {dest = alu.add <word>(dest, reg<word>()); }(rm<word>()); break; // ADD r/m16,r16      add r16 to r/m16                    (IA V2 p47)
+      case 0x02: fetchModRM(); [&](byte& dest) {dest = alu.add <byte>(dest, rm<byte>()); }(reg<byte>()); break; // ADD r8,r/m8        add r/m8 to r8                       (IA V2 p47)
+      case 0x03: fetchModRM(); [&](word& dest) {dest = alu.add <word>(dest, rm<word>()); }(reg<word>()); break; // ADD r16,r/m16      add r/m16 to r16                    (IA V2 p47)
+
+      case 0x08: fetchModRM(); [&](byte& dest) {dest = alu._or <byte>(dest, reg<byte>()); }(rm<byte>()); break; // OR  r/m8,r8        r/m8 OR r8                           (IA V2 p343)
+      case 0x09: fetchModRM(); [&](word& dest) {dest = alu._or <word>(dest, reg<word>()); }(rm<word>()); break; // OR  r/m16,r16      r/m16 OR r16                        (IA V2 p343)
+      case 0x0A: fetchModRM(); [&](byte& dest) {dest = alu._or <byte>(dest, rm<byte>()); }(reg<byte>()); break; // OR  r8,r/m8        r8 OR r/m8                           (IA V2 p343)
+      case 0x0B: fetchModRM(); [&](word& dest) {dest = alu._or <word>(dest, rm<word>()); }(reg<word>()); break; // OR  r16,r/m16      r16 OR r/m16                        (IA V2 p343)
+
+      case 0x10: fetchModRM(); [&](byte& dest) {dest = alu.adc <byte>(dest, reg<byte>()); }(rm<byte>()); break; // ADC r/m8,r8        add with carry byte register to r/m8 (IA V2 p45)
+      case 0x11: fetchModRM(); [&](word& dest) {dest = alu.adc <word>(dest, reg<word>()); }(rm<word>()); break; // ADC r/m16,r16      add with carry r16 to r/m16         (IA V2 p45)
+      case 0x12: fetchModRM(); [&](byte& dest) {dest = alu.adc <byte>(dest, rm<byte>()); }(reg<byte>()); break; // ADC r8,r/m8        add with carry r/m8 to byte register (IA V2 p45)
+      case 0x13: fetchModRM(); [&](word& dest) {dest = alu.adc <word>(dest, rm<word>()); }(reg<word>()); break; // ADC r16,r/m16      add with carry r/m16 to r16         (IA V2 p45)
+
+      case 0x18: fetchModRM(); [&](byte& dest) {dest = alu.sbb <byte>(dest, reg<byte>()); }(rm<byte>()); break; // SBB r/m8,r8        subtract with borrow r8 from r/m8    (IA V2 p450)
+      case 0x19: fetchModRM(); [&](word& dest) {dest = alu.sbb <word>(dest, reg<word>()); }(rm<word>()); break; // SBB r/m16,r16      subtract with borrow r16 from r/m16 (IA V2 p450)
+      case 0x1A: fetchModRM(); [&](byte& dest) {dest = alu.sbb <byte>(dest, rm<byte>()); }(reg<byte>()); break; // SBB r8,r/m8        subtract with borrow r/m8 from r8    (IA V2 p450)
+      case 0x1B: fetchModRM(); [&](word& dest) {dest = alu.sbb <word>(dest, rm<word>()); }(reg<word>()); break; // SBB r16,r/m16      subtract with borrow r/m16 from r16 (IA V2 p450)
+
+      case 0x20: fetchModRM(); [&](byte& dest) {dest = alu._and<byte>(dest, reg<byte>()); }(rm<byte>()); break; // AND r/m8,r8        r/m8 AND r8                          (IA V2 p49)
+      case 0x21: fetchModRM(); [&](word& dest) {dest = alu._and<word>(dest, reg<word>()); }(rm<word>()); break; // AND r/m16,r16      r/m16 AND r16                       (IA V2 p49)
+      case 0x22: fetchModRM(); [&](byte& dest) {dest = alu._and<byte>(dest, rm<byte>()); }(reg<byte>()); break; // AND r8,r/m8        r8 AND r/m8                          (IA V2 p49)
+      case 0x23: fetchModRM(); [&](word& dest) {dest = alu._and<word>(dest, rm<word>()); }(reg<word>()); break; // AND r16,r/m16      r16 AND r/m16                       (IA V2 p49)
+
+      case 0x28: fetchModRM(); [&](byte& dest) {dest = alu.sub <byte>(dest, reg<byte>()); }(rm<byte>()); break; // SUB r/m8,r8        subtract r8 from r/m8                (IA V2 p478)
+      case 0x29: fetchModRM(); [&](word& dest) {dest = alu.sub <word>(dest, reg<word>()); }(rm<word>()); break; // SUB r/m16,r16      subtract r16 from r/m16             (IA V2 p478)
+      case 0x2A: fetchModRM(); [&](byte& dest) {dest = alu.sub <byte>(dest, rm<byte>()); }(reg<byte>()); break; // SUB r8,r/m8        subtract r/m8 from r8                (IA V2 p478)
+      case 0x2B: fetchModRM(); [&](word& dest) {dest = alu.sub <word>(dest, rm<word>()); }(reg<word>()); break; // SUB r16,r/m16      subtract r/m16 from r16             (IA V2 p478)
+
+      case 0x30: fetchModRM(); [&](byte& dest) {dest = alu._xor<byte>(dest, reg<byte>()); }(rm<byte>()); break; // XOR r/m8,r8        r/m8 XOR r8                          (IA V2 p496)
+      case 0x31: fetchModRM(); [&](word& dest) {dest = alu._xor<word>(dest, reg<word>()); }(rm<word>()); break; // XOR r/m16,r16      r/m16 XOR r16                       (IA V2 p496)
+      case 0x32: fetchModRM(); [&](byte& dest) {dest = alu._xor<byte>(dest, rm<byte>()); }(reg<byte>()); break; // XOR r8,r/m8        r8 XOR r/m8                          (IA V2 p496)
+      case 0x33: fetchModRM(); [&](word& dest) {dest = alu._xor<word>(dest, rm<word>()); }(reg<word>()); break; // XOR r16,r/m16      r16 XOR r/m16                       (IA V2 p496)
+
       case 0x38: fetchModRM(); alu.sub<byte>(rm<byte>(), reg<byte>()); break; // CMP r/m8,r8        compare r8 with r/m8                 (IA V2 p91)
-
-      case 0x01: fetchModRM(); [this](word& dest) {dest = alu.add<word>(dest, reg<word>()); } (rm<word>()); break; // ADD r/m16,r16      add r16 to r/m16                    (IA V2 p47)
-      case 0x09: fetchModRM(); [this](word& dest) {dest = alu._or<word>(dest, reg<word>()); } (rm<word>()); break; // OR  r/m16,r16      r/m16 OR r16                        (IA V2 p343)
-      case 0x11: fetchModRM(); [this](word& dest) {dest = alu.adc<word>(dest, reg<word>()); } (rm<word>()); break; // ADC r/m16,r16      add with carry r16 to r/m16         (IA V2 p45)
-      case 0x19: fetchModRM(); [this](word& dest) {dest = alu.sbb<word>(dest, reg<word>()); } (rm<word>()); break; // SBB r/m16,r16      subtract with borrow r16 from r/m16 (IA V2 p450)
-      case 0x21: fetchModRM(); [this](word& dest) {dest = alu._and<word>(dest, reg<word>()); }(rm<word>()); break; // AND r/m16,r16      r/m16 AND r16                       (IA V2 p49)
-      case 0x29: fetchModRM(); [this](word& dest) {dest = alu.sub<word>(dest, reg<word>()); } (rm<word>()); break; // SUB r/m16,r16      subtract r16 from r/m16             (IA V2 p478)
-      case 0x31: fetchModRM(); [this](word& dest) {dest = alu._xor<word>(dest, reg<word>()); }(rm<word>()); break; // XOR r/m16,r16      r/m16 XOR r16                       (IA V2 p496)
       case 0x39: fetchModRM(); alu.sub<word>(rm<word>(), reg<word>()); break; // CMP r/m16,r16      compare r16 with r/m16               (IA V2 p91)
-
-      case 0x02: fetchModRM(); [this](byte& dest) {dest = alu.add<byte>(dest, rm<byte>()); } (reg<byte>()); break; // ADD r8,r/m8        add r/m8 to r8                       (IA V2 p47)
-      case 0x0A: fetchModRM(); [this](byte& dest) {dest = alu._or<byte>(dest, rm<byte>()); } (reg<byte>()); break; // OR  r8,r/m8        r8 OR r/m8                           (IA V2 p343)
-      case 0x12: fetchModRM(); [this](byte& dest) {dest = alu.adc<byte>(dest, rm<byte>()); } (reg<byte>()); break; // ADC r8,r/m8        add with carry r/m8 to byte register (IA V2 p45)
-      case 0x1A: fetchModRM(); [this](byte& dest) {dest = alu.sbb<byte>(dest, rm<byte>()); } (reg<byte>()); break; // SBB r8,r/m8        subtract with borrow r/m8 from r8    (IA V2 p450)
-      case 0x22: fetchModRM(); [this](byte& dest) {dest = alu._and<byte>(dest, rm<byte>()); }(reg<byte>()); break; // AND r8,r/m8        r8 AND r/m8                          (IA V2 p49)
-      case 0x2A: fetchModRM(); [this](byte& dest) {dest = alu.sub<byte>(dest, rm<byte>()); } (reg<byte>()); break; // SUB r8,r/m8        subtract r/m8 from r8                (IA V2 p478)
-      case 0x32: fetchModRM(); [this](byte& dest) {dest = alu._xor<byte>(dest, rm<byte>()); }(reg<byte>()); break; // XOR r8,r/m8        r8 XOR r/m8                          (IA V2 p496)
       case 0x3A: fetchModRM(); alu.sub<byte>(reg<byte>(), rm<byte>()); break; // CMP r8,r/m8        compare r/m8 with r8                 (IA V2 p91)
-
-      case 0x03: fetchModRM(); [this](word& dest) {dest = alu.add<word>(dest, rm<word>()); } (reg<word>()); break; // ADD r16,r/m16      add r/m16 to r16                    (IA V2 p47)
-      case 0x0B: fetchModRM(); [this](word& dest) {dest = alu._or<word>(dest, rm<word>()); } (reg<word>()); break; // OR  r16,r/m16      r16 OR r/m16                        (IA V2 p343)
-      case 0x13: fetchModRM(); [this](word& dest) {dest = alu.adc<word>(dest, rm<word>()); } (reg<word>()); break; // ADC r16,r/m16      add with carry r/m16 to r16         (IA V2 p45)
-      case 0x1B: fetchModRM(); [this](word& dest) {dest = alu.sbb<word>(dest, rm<word>()); } (reg<word>()); break; // SBB r16,r/m16      subtract with borrow r/m16 from r16 (IA V2 p450)
-      case 0x23: fetchModRM(); [this](word& dest) {dest = alu._and<word>(dest, rm<word>()); }(reg<word>()); break; // AND r16,r/m16      r16 AND r/m16                       (IA V2 p49)
-      case 0x2B: fetchModRM(); [this](word& dest) {dest = alu.sub<word>(dest, rm<word>()); } (reg<word>()); break; // SUB r16,r/m16      subtract r/m16 from r16             (IA V2 p478)
-      case 0x33: fetchModRM(); [this](word& dest) {dest = alu._xor<word>(dest, rm<word>()); }(reg<word>()); break; // XOR r16,r/m16      r16 XOR r/m16                       (IA V2 p496)
       case 0x3B: fetchModRM(); alu.sub<word>(reg<word>(), rm<word>()); break; // CMP r16,r/m16      compare r/m16 with r16               (IA V2 p91)
 
       // Immediate to accumulator
@@ -424,22 +432,28 @@ void State8086::run(unsigned int runtime)
       // [00 101 1 0 w] [data] [data if w=1] SUB = Subtract
       // [00 110 1 0 w] [data] [data if w=1] XOR = Exclusive or
       // [00 111 1 0 w] [data] [data if w=1] CMP = Compare
-      case 0x04: fetchModRM(); d_regs.a.l = alu.add<byte>(d_regs.a.l, imm<byte>()); break; // ADD AL,imm8        add imm8 to AL                    (IA V2 p47)
-      case 0x0C: fetchModRM(); d_regs.a.l = alu._or<byte>(d_regs.a.l, imm<byte>()); break; // OR  AL,imm8        AL OR imm8                        (IA V2 p343)
-      case 0x14: fetchModRM(); d_regs.a.l = alu.adc<byte>(d_regs.a.l, imm<byte>()); break; // ADC AL,imm8        add with carry imm8 to AL         (IA V2 p45)
-      case 0x1C: fetchModRM(); d_regs.a.l = alu.sbb<byte>(d_regs.a.l, imm<byte>()); break; // SBB AL,imm8        subtract with borrow imm8 from AL (IA V2 p450)
-      case 0x24: fetchModRM(); d_regs.a.l = alu._and<byte>(d_regs.a.l, imm<byte>()); break; // AND AL,imm8        AL AND imm8                       (IA V2 p49)
-      case 0x2C: fetchModRM(); d_regs.a.l = alu.sub<byte>(d_regs.a.l, imm<byte>()); break; // SUB AL,imm8        subtract imm8 from AL             (IA V2 p478)
-      case 0x34: fetchModRM(); d_regs.a.l = alu._xor<byte>(d_regs.a.l, imm<byte>()); break; // XOR AL,imm8        AL XOR imm8                       (IA V2 p496)
-      case 0x3C: fetchModRM(); alu.sub<byte>(d_regs.a.l, imm<byte>()); break; // CMP AL,imm8        compare imm8 with AL              (IA V2 p91)
+      case 0x04: fetchModRM(); d_regs.a.l = alu.add<byte>(d_regs.a.l, imm<byte>());  break; // ADD AL,imm8        add imm8 to AL                     (IA V2 p47)
+      case 0x05: fetchModRM(); d_regs.a.x = alu.add<word>(d_regs.a.x, imm<word>());  break; // ADD AX,imm16       add imm16 to AX                    (IA V2 p47)
 
-      case 0x05: fetchModRM(); d_regs.a.x = alu.add<word>(d_regs.a.x, imm<word>()); break; // ADD AX,imm16       add imm16 to AX                    (IA V2 p47)
-      case 0x0D: fetchModRM(); d_regs.a.x = alu._or<word>(d_regs.a.x, imm<word>()); break; // OR  AX,imm16       AX OR imm16                        (IA V2 p343)
-      case 0x15: fetchModRM(); d_regs.a.x = alu.adc<word>(d_regs.a.x, imm<word>()); break; // ADC AX,imm16       add with carry imm16 to AX         (IA V2 p45)
-      case 0x1D: fetchModRM(); d_regs.a.x = alu.sbb<word>(d_regs.a.x, imm<word>()); break; // SBB AX,imm16       subtract with borrow imm16 from AX (IA V2 p450)
+      case 0x0C: fetchModRM(); d_regs.a.l = alu._or<byte>(d_regs.a.l, imm<byte>());  break; // OR  AL,imm8        AL OR imm8                         (IA V2 p343)
+      case 0x0D: fetchModRM(); d_regs.a.x = alu._or<word>(d_regs.a.x, imm<word>());  break; // OR  AX,imm16       AX OR imm16                        (IA V2 p343)
+
+      case 0x14: fetchModRM(); d_regs.a.l = alu.adc<byte>(d_regs.a.l, imm<byte>());  break; // ADC AL,imm8        add with carry imm8 to AL          (IA V2 p45)
+      case 0x15: fetchModRM(); d_regs.a.x = alu.adc<word>(d_regs.a.x, imm<word>());  break; // ADC AX,imm16       add with carry imm16 to AX         (IA V2 p45)
+
+      case 0x1C: fetchModRM(); d_regs.a.l = alu.sbb<byte>(d_regs.a.l, imm<byte>());  break; // SBB AL,imm8        subtract with borrow imm8 from AL  (IA V2 p450)
+      case 0x1D: fetchModRM(); d_regs.a.x = alu.sbb<word>(d_regs.a.x, imm<word>());  break; // SBB AX,imm16       subtract with borrow imm16 from AX (IA V2 p450)
+
+      case 0x24: fetchModRM(); d_regs.a.l = alu._and<byte>(d_regs.a.l, imm<byte>()); break; // AND AL,imm8        AL AND imm8                        (IA V2 p49)
       case 0x25: fetchModRM(); d_regs.a.x = alu._and<word>(d_regs.a.x, imm<word>()); break; // AND AX,imm16       AX AND imm16                       (IA V2 p49)
-      case 0x2D: fetchModRM(); d_regs.a.x = alu.sub<word>(d_regs.a.x, imm<word>()); break; // SUB AX,imm16       subtract imm16 from AX             (IA V2 p478)
+
+      case 0x2C: fetchModRM(); d_regs.a.l = alu.sub<byte>(d_regs.a.l, imm<byte>());  break; // SUB AL,imm8        subtract imm8 from AL              (IA V2 p478)
+      case 0x2D: fetchModRM(); d_regs.a.x = alu.sub<word>(d_regs.a.x, imm<word>());  break; // SUB AX,imm16       subtract imm16 from AX             (IA V2 p478)
+
+      case 0x34: fetchModRM(); d_regs.a.l = alu._xor<byte>(d_regs.a.l, imm<byte>()); break; // XOR AL,imm8        AL XOR imm8                        (IA V2 p496)
       case 0x35: fetchModRM(); d_regs.a.x = alu._xor<word>(d_regs.a.x, imm<word>()); break; // XOR AX,imm16       AX XOR imm16                       (IA V2 p496)
+
+      case 0x3C: fetchModRM(); alu.sub<byte>(d_regs.a.l, imm<byte>()); break; // CMP AL,imm8        compare imm8 with AL              (IA V2 p91)
       case 0x3D: fetchModRM(); alu.sub<word>(d_regs.a.x, imm<word>()); break; // CMP AX,imm16       compare imm16 with AX              (IA V2 p91)
 
       // Immediate to register/memory
@@ -454,24 +468,18 @@ void State8086::run(unsigned int runtime)
       case 0x80: // Immediate Group r/m8,imm8
       {
          fetchModRM();
-         switch (ext) {
-            // /0 ADD r/m8,imm8   add imm8 to r/m8                    (IA V2 p47)
-            // /1 OR  r/m8,imm8   r/m8 OR imm8                        (IA V2 p343)
-            // /2 ADC r/m8,imm8   add with carry imm8 to r/m8         (IA V2 p45)
-            // /3 SBB r/m8,imm8   subtract with borrow imm8 from r/m8 (IA V2 p450)
-            // /4 AND r/m8,imm8   r/m8 AND imm8                       (IA V2 p49)
-            // /5 SUB r/m8,imm8   subtract imm8 from r/m8             (IA V2 p478)
-            // /6 XOR r/m8,imm8   r/m8 XOR imm8                       (IA V2 p496)
-            // /7 CMP r/m8,imm8   compare imm8 with r/m8              (IA V2 p91)
-         case 1: [this](byte& dest) {dest = alu._or<byte>(dest, imm<byte>()); } (rm<byte>()); break;
-         case 0: [this](byte& dest) {dest = alu.add<byte>(dest, imm<byte>()); } (rm<byte>()); break;
-         case 2: [this](byte& dest) {dest = alu.adc<byte>(dest, imm<byte>()); } (rm<byte>()); break;
-         case 3: [this](byte& dest) {dest = alu.sbb<byte>(dest, imm<byte>()); } (rm<byte>()); break;
-         case 4: [this](byte& dest) {dest = alu._and<byte>(dest, imm<byte>()); }(rm<byte>()); break;
-         case 5: [this](byte& dest) {dest = alu.sub<byte>(dest, imm<byte>()); } (rm<byte>()); break;
-         case 6: [this](byte& dest) {dest = alu._xor<byte>(dest, imm<byte>()); }(rm<byte>()); break;
-         case 7: alu.sub<byte>(rm<byte>(), imm<byte>()); break;
-         }
+         [&](byte& dest, byte src) {
+            switch (ext) {
+            case 0: dest = alu.add<byte>(dest, src);  break; // /0 ADD r/m8,imm8   add imm8 to r/m8                    (IA V2 p47)
+            case 1: dest = alu._or<byte>(dest, src);  break; // /1 OR  r/m8,imm8   r/m8 OR imm8                        (IA V2 p343)
+            case 2: dest = alu.adc<byte>(dest, src);  break; // /2 ADC r/m8,imm8   add with carry imm8 to r/m8         (IA V2 p45)
+            case 3: dest = alu.sbb<byte>(dest, src);  break; // /3 SBB r/m8,imm8   subtract with borrow imm8 from r/m8 (IA V2 p450)
+            case 4: dest = alu._and<byte>(dest, src); break; // /4 AND r/m8,imm8   r/m8 AND imm8                       (IA V2 p49)
+            case 5: dest = alu.sub<byte>(dest, src);  break; // /5 SUB r/m8,imm8   subtract imm8 from r/m8             (IA V2 p478)
+            case 6: dest = alu._xor<byte>(dest, src); break; // /6 XOR r/m8,imm8   r/m8 XOR imm8                       (IA V2 p496)
+            case 7:        alu.sub<byte>(dest, src);  break; // /7 CMP r/m8,imm8   compare imm8 with r/m8              (IA V2 p91)
+            }
+         }(rm<byte>(), imm<byte>());
          break;
       }
       // This particular opcode is not at all referenced in IA V2. The only assurance that it is in fact used
@@ -480,72 +488,53 @@ void State8086::run(unsigned int runtime)
       case 0x82: // Immediate Group r/m8,imm8 (not referenced in modern documentation, but follows the pattern)
       {
          fetchModRM();
-         switch (ext) {
-            // /0 ADD r/m8,imm8 (8086 Table 4-13 page 4-31)
-            // /1    (not used) (8086 Table 4-13 page 4-31)
-            // /2 ADC r/m8,imm8 (8086 Table 4-13 page 4-31)
-            // /3 SBB r/m8,imm8 (8086 Table 4-13 page 4-31)
-            // /4    (not used) (8086 Table 4-13 page 4-31)
-            // /5 SUB r/m8,imm8 (8086 Table 4-13 page 4-31)
-            // /6    (not used) (8086 Table 4-13 page 4-31)
-            // /7 CMP r/m8,imm8 (8086 Table 4-13 page 4-31)
-         case 0: [this](byte& dest) { dest = alu.add<byte>(dest, imm<byte>()); }(rm<byte>()); break;
-         case 1: assert(false);
-         case 2: [this](byte& dest) { dest = alu.adc<byte>(dest, imm<byte>()); }(rm<byte>()); break;
-         case 3: [this](byte& dest) { dest = alu.sbb<byte>(dest, imm<byte>()); }(rm<byte>()); break;
-         case 4: assert(false);
-         case 5: [this](byte& dest) { dest = alu.sub<byte>(dest, imm<byte>()); }(rm<byte>()); break;
-         case 6: assert(false);
-         case 7: alu.sub<byte>(rm<byte>(), imm<byte>()); break;
-         }
+         [&](byte& dest, byte src) {
+            switch (ext) {
+            case 0: dest = alu.add<byte>(dest, src); break; // /0 ADD r/m8,imm8 (8086 Table 4-13 page 4-31)
+            case 1: assert(false);                          // /1    (not used) (8086 Table 4-13 page 4-31)
+            case 2: dest = alu.adc<byte>(dest, src); break; // /2 ADC r/m8,imm8 (8086 Table 4-13 page 4-31)
+            case 3: dest = alu.sbb<byte>(dest, src); break; // /3 SBB r/m8,imm8 (8086 Table 4-13 page 4-31)
+            case 4: assert(false);                          // /4    (not used) (8086 Table 4-13 page 4-31)
+            case 5: dest = alu.sub<byte>(dest, src); break; // /5 SUB r/m8,imm8 (8086 Table 4-13 page 4-31)
+            case 6: assert(false);                          // /6    (not used) (8086 Table 4-13 page 4-31)
+            case 7:        alu.sub<byte>(dest, src); break; // /7 CMP r/m8,imm8 (8086 Table 4-13 page 4-31)
+            }
+         }(rm<byte>(), imm<byte>());
          break;
       }
       case 0x81: // Immediate Group r/m16,imm16
       {
          fetchModRM();
-         switch (ext) {
-            // /0 ADD r/m16,imm16 add imm16 to r/m16                    (IA V2 p47)
-            // /1 OR  r/m16,imm16 r/m16 OR imm16                        (IA V2 p343)
-            // /2 ADC r/m16,imm16 add with carry imm16 to r/m16         (IA V2 p45)
-            // /3 SBB r/m16,imm16 subtract with borrow imm16 from r/m16 (IA V2 p450)
-            // /4 AND r/m16,imm16 r/m16 AND imm16                       (IA V2 p49)
-            // /5 SUB r/m16,imm16 subtract imm16 from r/m16             (IA V2 p478)
-            // /6 XOR r/m16,imm16 r/m16 XOR imm16                       (IA V2 p496)
-            // /7 CMP r/m16,imm16 compare imm16 with r/m16              (IA V2 p91)
-         case 0: [this](word& dest) {dest = alu.add<word>(dest, imm<word>()); } (rm<word>()); break;
-         case 1: [this](word& dest) {dest = alu._or<word>(dest, imm<word>()); } (rm<word>()); break;
-         case 2: [this](word& dest) {dest = alu.adc<word>(dest, imm<word>()); } (rm<word>()); break;
-         case 3: [this](word& dest) {dest = alu.sbb<word>(dest, imm<word>()); } (rm<word>()); break;
-         case 4: [this](word& dest) {dest = alu._and<word>(dest, imm<word>()); }(rm<word>()); break;
-         case 5: [this](word& dest) {dest = alu.sub<word>(dest, imm<word>()); } (rm<word>()); break;
-         case 6: [this](word& dest) {dest = alu._xor<word>(dest, imm<word>()); }(rm<word>()); break;
-         case 7: alu.sub<word>(rm<word>(), imm<word>()); break;
-         }
+         [&](word& dest, word src) {
+            switch (ext) {
+            case 0: dest = alu.add<word>(dest, src);  break; // /0 ADD r/m16,imm16 add imm16 to r/m16                    (IA V2 p47)
+            case 1: dest = alu._or<word>(dest, src);  break; // /1 OR  r/m16,imm16 r/m16 OR imm16                        (IA V2 p343)
+            case 2: dest = alu.adc<word>(dest, src);  break; // /2 ADC r/m16,imm16 add with carry imm16 to r/m16         (IA V2 p45)
+            case 3: dest = alu.sbb<word>(dest, src);  break; // /3 SBB r/m16,imm16 subtract with borrow imm16 from r/m16 (IA V2 p450)
+            case 4: dest = alu._and<word>(dest, src); break; // /4 AND r/m16,imm16 r/m16 AND imm16                       (IA V2 p49)
+            case 5: dest = alu.sub<word>(dest, src);  break; // /5 SUB r/m16,imm16 subtract imm16 from r/m16             (IA V2 p478)
+            case 6: dest = alu._xor<word>(dest, src); break; // /6 XOR r/m16,imm16 r/m16 XOR imm16                       (IA V2 p496)
+            case 7:        alu.sub<word>(dest, src);  break; // /7 CMP r/m16,imm16 compare imm16 with r/m16              (IA V2 p91)
+            }
+         }(rm<word>(), imm<word>());
          break;
       }
       case 0x83: // Immediate Group r/m16,imm8
                  // [0x83] [mod /# r/m] [(DISP-LO)] [(DISP-HI)] [DATA-SX]
       {
          fetchModRM();
-         word op2 = (int16_t)(int8_t)imm<byte>();
-         switch (ext) {
-            // /0 ADD r/m16,imm8  add sign-extended imm8 to r/m16                    (IA V2 p47)
-            // /1 (not used)                                                         (8086 Family Table 4-13 page 4-31)
-            // /2 ADC r/m16,imm8  add with CF sign-extended imm8 to r/m16            (IA V2 p45)
-            // /3 SBB r/m16,imm8  subtract with borrow sign-extended imm8 from r/m16 (IA V2 p450)
-            // /4 (not used)                                                         (8086 Family Table 4-13 page 4-31)
-            // /5 SUB r/m16,imm8  subtract sign-extended imm8 from r/m16             (IA V2 p478)
-            // /6 (not used)                                                         (8086 Family Table 4-13 page 4-31)
-            // /7 CMP r/m16,imm8  compare imm8 with r/m16                            (IA V2 p91)
-         case 0: [this, op2](word& dest) {dest = alu.add<word>(dest, op2); }(rm<word>()); break;
-         case 1: assert(false);
-         case 2: [this, op2](word& dest) {dest = alu.adc<word>(dest, op2); }(rm<word>()); break;
-         case 3: [this, op2](word& dest) {dest = alu.sbb<word>(dest, op2); }(rm<word>()); break;
-         case 4: assert(false);
-         case 5: [this, op2](word& dest) {dest = alu.sub<word>(dest, op2); }(rm<word>()); break;
-         case 6: assert(false);
-         case 7: alu.sub<word>(rm<word>(), op2); break;
-         }
+         [&](word& dest, word src) {
+            switch (ext) {
+            case 0: dest = alu.add<word>(dest, src); break; // /0 ADD r/m16,imm8  add sign-extended imm8 to r/m16                    (IA V2 p47)
+            case 1: assert(false);                          // /1 (not used)                                                         (8086 Family Table 4-13 page 4-31)
+            case 2: dest = alu.adc<word>(dest, src); break; // /2 ADC r/m16,imm8  add with CF sign-extended imm8 to r/m16            (IA V2 p45)
+            case 3: dest = alu.sbb<word>(dest, src); break; // /3 SBB r/m16,imm8  subtract with borrow sign-extended imm8 from r/m16 (IA V2 p450)
+            case 4: assert(false);                          // /4 (not used)                                                         (8086 Family Table 4-13 page 4-31)
+            case 5: dest = alu.sub<word>(dest, src); break; // /5 SUB r/m16,imm8  subtract sign-extended imm8 from r/m16             (IA V2 p478)
+            case 6: assert(false);                          // /6 (not used)                                                         (8086 Family Table 4-13 page 4-31)
+            case 7:        alu.sub<word>(dest, src); break; // /7 CMP r/m16,imm8  compare imm8 with r/m16                            (IA V2 p91)
+            }
+         }(rm<word>(), (int16_t)(int8_t)imm<byte>());
          break;
       }
 
@@ -558,22 +547,14 @@ void State8086::run(unsigned int runtime)
       {
          fetchModRM();
          switch (ext) {
-            // /0 INC  r/m16      increment r/m word by 1                               (IA V2 p243) (8086 Family Table 4-13 page 4-35)
-            // /1 DEC  r/m16      decrement r/m16    by 1                               (IA V2 p112) (8086 Family Table 4-13 page 4-35)
-            // /2 CALL r/m16      call near, absolute indirect, address given in r/m16  (IA V2 p68)  (8086 Family Table 4-13 page 4-35)
-            // /3 CALL m16:16     call far,  absolute indirect, address given in m16:16 (IA V2 p68)  (8086 Family Table 4-13 page 4-35)
-            // /4 JMP  r/m16      jump near, absolute,          address given in r/m16  (IA V2 p275) (8086 Family Table 4-13 page 4-35)
-            // /5 JMP  ptr16:16   jump far,  absolute,          address given in m16:16 (IA V2 p275) (8086 Family Table 4-13 page 4-35)
-            // /6 PUSH r/m16      push r/m16                                            (IA V2 p415) (8086 Family Table 4-13 page 4-35)
-            // /7 (not used)                                                                         (8086 Family Table 4-13 page 4-35)
-         case 0: [this](word& dest) {dest = alu.INC<word>(dest); }(rm<word>()); break;
-         case 1: [this](word& dest) {dest = alu.DEC<word>(dest); }(rm<word>()); break;
-         case 2: callnear(rm<word>()); break;
-         case 3: callfar(ea()); break;
-         case 4: jumpNear(rm<word>()); break;
-         case 5: jumpFar(ea()); break;
-         case 6: push(rm<word>()); break;
-         case 7: assert(false); // unused
+         case 0: [&](word& dest) {dest = alu.INC<word>(dest); }(rm<word>()); break; // /0 INC  r/m16      increment r/m word by 1                               (IA V2 p243) (8086 Family Table 4-13 page 4-35)
+         case 1: [&](word& dest) {dest = alu.DEC<word>(dest); }(rm<word>()); break; // /1 DEC  r/m16      decrement r/m16    by 1                               (IA V2 p112) (8086 Family Table 4-13 page 4-35)
+         case 2: callnear(rm<word>());                                       break; // /2 CALL r/m16      call near, absolute indirect, address given in r/m16  (IA V2 p68)  (8086 Family Table 4-13 page 4-35)
+         case 3: callfar(ea());                                              break; // /3 CALL m16:16     call far,  absolute indirect, address given in m16:16 (IA V2 p68)  (8086 Family Table 4-13 page 4-35)
+         case 4: jumpNear(rm<word>());                                       break; // /4 JMP  r/m16      jump near, absolute,          address given in r/m16  (IA V2 p275) (8086 Family Table 4-13 page 4-35)
+         case 5: jumpFar(ea());                                              break; // /5 JMP  ptr16:16   jump far,  absolute,          address given in m16:16 (IA V2 p275) (8086 Family Table 4-13 page 4-35)
+         case 6: push(rm<word>());                                           break; // /6 PUSH r/m16      push r/m16                                            (IA V2 p415) (8086 Family Table 4-13 page 4-35)
+         case 7: assert(false);                                                     // /7 (not used)                                                                         (8086 Family Table 4-13 page 4-35)
          }
          break;
       }
@@ -584,13 +565,13 @@ void State8086::run(unsigned int runtime)
       case 0xFE: // INC/DEC Group
       {
          fetchModRM();
-         switch (ext) {
-            // /0 INC r/m8        increment r/m byte by 1 (IA V2 p243)
-            // /1 DEC r/m8        decrement r/m8 by 1     (IA V2 p112)
-         case 0: [this](byte dest) {dest = alu.INC<byte>(dest); }(rm<byte>()); break;
-         case 1: [this](byte dest) {dest = alu.DEC<byte>(dest); }(rm<byte>()); break;
-         default: assert(false); // /2-7 (not used)       (8086 Table 4-13 page 4-35)
-         }
+         [&](byte& dest) {
+            switch (ext) {
+            case 0: dest = alu.INC<byte>(dest); break; // /0 INC r/m8        increment r/m byte by 1 (IA V2 p243)
+            case 1: dest = alu.DEC<byte>(dest); break; // /1 DEC r/m8        decrement r/m8 by 1     (IA V2 p112)
+            default: assert(false);                    // /2-7 (not used)       (8086 Table 4-13 page 4-35)
+            }
+         }(rm<byte>());
          break;
       }
       // Register
@@ -636,47 +617,35 @@ void State8086::run(unsigned int runtime)
       case 0xF6: // Unary Group imm8
       {
          fetchModRM();
-         switch (ext) {
-            // /0 TEST r/m8,imm8     AND imm8 with r/m8; set SF,ZF,PF according to result                                                               (IA V2 p480)
-            // /1 (not used)                                                                                                                            (8086 Table 4-13 page 4-35)
-            // /2 NOT  r/m8          reverse each bit of r/m8                                                                                           (IA V2 p341)
-            // /3 NEG  r/m8          two's complement negate r/m8                                                                                       (IA V2 p338)
-            // /4 MUL  r/m8          unsigned multiply (AX<-AL*r/m8)                                                                                    (IA V2 p336)
-            // /5 IMUL r/m8          AX<-AL*r/m byte                                                                                                    (IA V2 p238)
-            // /6 DIV  r/m8          unsigned divide AX by r/m8; AL <- quotient, AH <- remainder                                                        (IA V2 p114)
-            // /7 IDIV r/m8          signed divide AX (where AH must contain sign-extended of AL) by r/m byte. (Results: AL=quotient, AH=remainder)     (IA V2 p235)
-         case 0: alu._and(rm<byte>(), imm<byte>()); break;
-         case 1: assert(false);
-         case 2: alu.NOT<byte>(rm<byte>()); break;
-         case 3: alu.NEG<byte>(rm<byte>()); break;
-         case 4: alu.MUL<byte>(d_regs.a.h, d_regs.a.l, rm<byte>()); break;
-         case 5: alu.IMUL<byte>(d_regs.a.h, d_regs.a.l, rm<byte>()); break;
-         case 6: alu.DIV<byte>(d_regs.a.h, d_regs.a.l, rm<byte>()); break;
-         case 7: alu.IDIV<byte>(d_regs.a.h, d_regs.a.l, rm<byte>()); break;
-         }
+         [&](byte& val) {
+            switch (ext) {
+            case 0: alu._and(val, imm<byte>());                  break; // /0 TEST r/m8,imm8     AND imm8 with r/m8; set SF,ZF,PF according to result                                                               (IA V2 p480)
+            case 1: assert(false);                                      // /1 (not used)                                                                                                                            (8086 Table 4-13 page 4-35)
+            case 2: alu.NOT<byte>(val);                          break; // /2 NOT  r/m8          reverse each bit of r/m8                                                                                           (IA V2 p341)
+            case 3: alu.NEG<byte>(val);                          break; // /3 NEG  r/m8          two's complement negate r/m8                                                                                       (IA V2 p338)
+            case 4: alu.MUL <byte>(d_regs.a.h, d_regs.a.l, val); break; // /4 MUL  r/m8          unsigned multiply (AX<-AL*r/m8)                                                                                    (IA V2 p336)
+            case 5: alu.IMUL<byte>(d_regs.a.h, d_regs.a.l, val); break; // /5 IMUL r/m8          AX<-AL*r/m byte                                                                                                    (IA V2 p238)
+            case 6: alu.DIV <byte>(d_regs.a.h, d_regs.a.l, val); break; // /6 DIV  r/m8          unsigned divide AX by r/m8; AL <- quotient, AH <- remainder                                                        (IA V2 p114)
+            case 7: alu.IDIV<byte>(d_regs.a.h, d_regs.a.l, val); break; // /7 IDIV r/m8          signed divide AX (where AH must contain sign-extended of AL) by r/m byte. (Results: AL=quotient, AH=remainder)     (IA V2 p235)
+            }
+         }(rm<byte>());
          break;
       }
       case 0xF7: // Unary Group 3^2 Ev
       {
          fetchModRM();
-         switch (ext) {
-            // /0 TEST r/m16,imm16   AND imm16 with r/m16; set SF,ZF,PF according to result                                                             (IA V2 p480)
-            // /1 (not used)                                                                                                                            (8086 Table 4-13 page 4-35)
-            // /2 NOT  r/m16         reverse each bit of r/m16                                                                                          (IA V2 p341)
-            // /3 NEG  r/m16         two's complement negate r/m16                                                                                      (IA V2 p338)
-            // /4 MUL  r/m16         unsigned multiply (DX:AX<-AX*r/m16)                                                                                (IA V2 p336)
-            // /5 IMUL r/m16         DX:AX<-AX*r/m word                                                                                                 (IA V2 p238)
-            // /6 DIV  r/m16         unsigned divide D:AX by r/m16; AX <- quotient, DX <- remainder                                                     (IA V2 p114)
-            // /7 IDIV r/m16         signed divide DX:AX (where DX must contain sign-extension of AX) by r/m word. (Results: AX=quotient, DX=remainder) (IA V2 p235)
-         case 0: alu._and(rm<word>(), imm<word>()); break;
-         case 1: assert(false);
-         case 2: alu.NOT<word>(rm<word>()); break;
-         case 3: alu.NEG<word>(rm<word>()); break;
-         case 4: alu.MUL<word>(d_regs.d.x, d_regs.a.x, rm<word>()); break;
-         case 5: alu.IMUL<word>(d_regs.d.x, d_regs.a.x, rm<word>()); break;
-         case 6: alu.DIV<word>(d_regs.d.x, d_regs.a.x, rm<word>()); break;
-         case 7: alu.IDIV<word>(d_regs.d.x, d_regs.a.x, rm<word>()); break;
-         }
+         [&](word& val) {
+            switch (ext) {
+            case 0: alu._and(val, imm<word>());                  break; // /0 TEST r/m16,imm16   AND imm16 with r/m16; set SF,ZF,PF according to result                                                             (IA V2 p480)
+            case 1: assert(false);                                      // /1 (not used)                                                                                                                            (8086 Table 4-13 page 4-35)
+            case 2: alu.NOT<word>(val);                          break; // /2 NOT  r/m16         reverse each bit of r/m16                                                                                          (IA V2 p341)
+            case 3: alu.NEG<word>(val);                          break; // /3 NEG  r/m16         two's complement negate r/m16                                                                                      (IA V2 p338)
+            case 4: alu.MUL <word>(d_regs.d.x, d_regs.a.x, val); break; // /4 MUL  r/m16         unsigned multiply (DX:AX<-AX*r/m16)                                                                                (IA V2 p336)
+            case 5: alu.IMUL<word>(d_regs.d.x, d_regs.a.x, val); break; // /5 IMUL r/m16         DX:AX<-AX*r/m word                                                                                                 (IA V2 p238)
+            case 6: alu.DIV <word>(d_regs.d.x, d_regs.a.x, val); break; // /6 DIV  r/m16         unsigned divide D:AX by r/m16; AX <- quotient, DX <- remainder                                                     (IA V2 p114)
+            case 7: alu.IDIV<word>(d_regs.d.x, d_regs.a.x, val); break; // /7 IDIV r/m16         signed divide DX:AX (where DX must contain sign-extension of AX) by r/m word. (Results: AX=quotient, DX=remainder) (IA V2 p235)
+            }
+         }(rm<word>());
          break;
       }
 
@@ -756,93 +725,69 @@ void State8086::run(unsigned int runtime)
       case 0xD0: // Shift Group 2^2 Eb,1
       {
          fetchModRM();
-         switch (ext) {
-            // /0 ROL r/m8,1      Rotate 8 bits r/m8 left once       (IA V2 p424)
-            // /1 ROR r/m8,1      Rotate 8 bits r/m8 right once      (IA V2 p424)
-            // /2 RCL r/m8,1      Rotate 9 bits (CF,r/m8) left once  (IA V2 p424)
-            // /3 RCR r/m8,1      Rotate 9 bits (CF,r/m8) right once (IA V2 p424)
-            // /4 SHL/SAL r/m8,1  Multiply r/m8 by 2, once           (IA V2 p446)
-            // /5 SHR r/m8,1      Unsigned divide r/m8 by 2, once    (IA V2 p446)
-            // /6 (not used)                                         (8086 Table 4-13 page 4-33)
-            // /7 SAR r/m8,1      Signed divide* r/m8 by 2, once     (IA V2 p446)
-         case 0: [this](byte& dest) {dest = alu.ROL<byte>(dest, 1); }(rm<byte>()); break;
-         case 1: [this](byte& dest) {dest = alu.ROR<byte>(dest, 1); }(rm<byte>()); break;
-         case 2: [this](byte& dest) {dest = alu.RCL<byte>(dest, 1); }(rm<byte>()); break;
-         case 3: [this](byte& dest) {dest = alu.RCR<byte>(dest, 1); }(rm<byte>()); break;
-         case 4: [this](byte& dest) {dest = alu.SHL<byte>(dest, 1); }(rm<byte>()); break;
-         case 5: [this](byte& dest) {dest = alu.SHR<byte>(dest, 1); }(rm<byte>()); break;
-         case 6: assert(false);
-         case 7: [this](byte& dest) {dest = alu.SAR<byte>(dest, 1); }(rm<byte>()); break;
-         }
+         [&](byte& dest) {
+            switch (ext) {
+            case 0: dest = alu.ROL<byte>(dest, 1); break; // /0 ROL r/m8,1      Rotate 8 bits r/m8 left once       (IA V2 p424)
+            case 1: dest = alu.ROR<byte>(dest, 1); break; // /1 ROR r/m8,1      Rotate 8 bits r/m8 right once      (IA V2 p424)
+            case 2: dest = alu.RCL<byte>(dest, 1); break; // /2 RCL r/m8,1      Rotate 9 bits (CF,r/m8) left once  (IA V2 p424)
+            case 3: dest = alu.RCR<byte>(dest, 1); break; // /3 RCR r/m8,1      Rotate 9 bits (CF,r/m8) right once (IA V2 p424)
+            case 4: dest = alu.SHL<byte>(dest, 1); break; // /4 SHL/SAL r/m8,1  Multiply r/m8 by 2, once           (IA V2 p446)
+            case 5: dest = alu.SHR<byte>(dest, 1); break; // /5 SHR r/m8,1      Unsigned divide r/m8 by 2, once    (IA V2 p446)
+            case 6: assert(false);                        // /6 (not used)                                         (8086 Table 4-13 page 4-33)
+            case 7: dest = alu.SAR<byte>(dest, 1); break; // /7 SAR r/m8,1      Signed divide* r/m8 by 2, once     (IA V2 p446)
+            }
+         }(rm<byte>());
          break;
       }
       case 0xD1: // Shift Group 2^2 Ev,1
       {
          fetchModRM();
-         switch (ext) {
-            // /0 ROL r/m16,1     Rotate 16 bits r/m16 left once       (IA V2 p424)
-            // /1 ROR r/m16,1     Rotate 16 bits r/m16 right once      (IA V2 p424)
-            // /2 RCL r/m16,1     Rotate 17 bits (CF,r/m16) left once  (IA V2 p424)
-            // /3 RCR r/m16,1     Rotate 17 bits (CF,r/m16) right once (IA V2 p424)
-            // /4 SHL/SAL r/m16,1 Multiply r/m16 by 2, once            (IA V2 p446)
-            // /5 SHR r/m16,1     Unsigned divide r/m16 by 2, once     (IA V2 p446)
-            // /6 (not used)                                           (8086 Table 4-13 page 4-34)
-            // /7 SAR r/m16,1     Signed divide* r/m16 by 2, once      (IA V2 p446)
-         case 0: [this](word& dest) {dest = alu.ROL<word>(dest, 1); }(rm<word>()); break;
-         case 1: [this](word& dest) {dest = alu.ROR<word>(dest, 1); }(rm<word>()); break;
-         case 2: [this](word& dest) {dest = alu.RCL<word>(dest, 1); }(rm<word>()); break;
-         case 3: [this](word& dest) {dest = alu.RCR<word>(dest, 1); }(rm<word>()); break;
-         case 4: [this](word& dest) {dest = alu.SHL<word>(dest, 1); }(rm<word>()); break;
-         case 5: [this](word& dest) {dest = alu.SHR<word>(dest, 1); }(rm<word>()); break;
-         case 6: assert(false);
-         case 7: [this](word& dest) {dest = alu.SAR<word>(dest, 1); }(rm<word>()); break;
-         }
+         [&](word& dest) {
+            switch (ext) {
+            case 0: dest = alu.ROL<word>(dest, 1); break; // /0 ROL r/m16,1     Rotate 16 bits r/m16 left once       (IA V2 p424)
+            case 1: dest = alu.ROR<word>(dest, 1); break; // /1 ROR r/m16,1     Rotate 16 bits r/m16 right once      (IA V2 p424)
+            case 2: dest = alu.RCL<word>(dest, 1); break; // /2 RCL r/m16,1     Rotate 17 bits (CF,r/m16) left once  (IA V2 p424)
+            case 3: dest = alu.RCR<word>(dest, 1); break; // /3 RCR r/m16,1     Rotate 17 bits (CF,r/m16) right once (IA V2 p424)
+            case 4: dest = alu.SHL<word>(dest, 1); break; // /4 SHL/SAL r/m16,1 Multiply r/m16 by 2, once            (IA V2 p446)
+            case 5: dest = alu.SHR<word>(dest, 1); break; // /5 SHR r/m16,1     Unsigned divide r/m16 by 2, once     (IA V2 p446)
+            case 6: assert(false);                        // /6 (not used)                                           (8086 Table 4-13 page 4-34)
+            case 7: dest = alu.SAR<word>(dest, 1); break; // /7 SAR r/m16,1     Signed divide* r/m16 by 2, once      (IA V2 p446)
+            }
+         }(rm<word>());
          break;
       }
       case 0xD2: // Shift Group 2^2 Eb,CL
       {
          fetchModRM();
-         switch (ext) {
-            // /0 ROL r/m8,CL     Rotate 8 bits r/m8 left CL times       (IA V2 p424)
-            // /1 ROR r/m8,CL     Rotate 8 bits r/m8 right CL times      (IA V2 p424)
-            // /2 RCL r/m8,CL     Rotate 9 bits (CF,r/m8) left CL times  (IA V2 p424)
-            // /3 RCR r/m8,CL     Rotate 9 bits (CF,r/m8) right CL times (IA V2 p424)
-            // /4 SHL/SAL r/m8,CL Multiply r/m8 by 2, CL times           (IA V2 p446)
-            // /5 SHR r/m8,CL     Unsigned divide r/m8 by 2, CL times    (IA V2 p446)
-            // /6 (not used)                                             (8086 Table 4-13 page 4-34)
-            // /7 SAR r/m8,CL     Signed divide* r/m8 by 2, CL times     (IA V2 p446)
-         case 0: [this](byte& dest) {dest = alu.ROL<byte>(dest, d_regs.c.l); }(rm<byte>()); break;
-         case 1: [this](byte& dest) {dest = alu.ROR<byte>(dest, d_regs.c.l); }(rm<byte>()); break;
-         case 2: [this](byte& dest) {dest = alu.RCL<byte>(dest, d_regs.c.l); }(rm<byte>()); break;
-         case 3: [this](byte& dest) {dest = alu.RCR<byte>(dest, d_regs.c.l); }(rm<byte>()); break;
-         case 4: [this](byte& dest) {dest = alu.SHL<byte>(dest, d_regs.c.l); }(rm<byte>()); break;
-         case 5: [this](byte& dest) {dest = alu.SHR<byte>(dest, d_regs.c.l); }(rm<byte>()); break;
-         case 6: assert(false);
-         case 7: [this](byte& dest) {dest = alu.SAR<byte>(dest, d_regs.c.l); }(rm<byte>()); break;
-         }
+         [&](byte& dest) {
+            switch (ext) {
+            case 0: dest = alu.ROL<byte>(dest, d_regs.c.l); break; // /0 ROL r/m8,CL     Rotate 8 bits r/m8 left CL times       (IA V2 p424)
+            case 1: dest = alu.ROR<byte>(dest, d_regs.c.l); break; // /1 ROR r/m8,CL     Rotate 8 bits r/m8 right CL times      (IA V2 p424)
+            case 2: dest = alu.RCL<byte>(dest, d_regs.c.l); break; // /2 RCL r/m8,CL     Rotate 9 bits (CF,r/m8) left CL times  (IA V2 p424)
+            case 3: dest = alu.RCR<byte>(dest, d_regs.c.l); break; // /3 RCR r/m8,CL     Rotate 9 bits (CF,r/m8) right CL times (IA V2 p424)
+            case 4: dest = alu.SHL<byte>(dest, d_regs.c.l); break; // /4 SHL/SAL r/m8,CL Multiply r/m8 by 2, CL times           (IA V2 p446)
+            case 5: dest = alu.SHR<byte>(dest, d_regs.c.l); break; // /5 SHR r/m8,CL     Unsigned divide r/m8 by 2, CL times    (IA V2 p446)
+            case 6: assert(false);                                 // /6 (not used)                                             (8086 Table 4-13 page 4-34)
+            case 7: dest = alu.SAR<byte>(dest, d_regs.c.l); break; // /7 SAR r/m8,CL     Signed divide* r/m8 by 2, CL times     (IA V2 p446)
+            }
+         }(rm<byte>());
          break;
       }
       case 0xD3: // Shift Group 2^2 Ev,CL
       {
          fetchModRM();
-         switch (ext) {
-            // /0 ROL r/m16,CL    Rotate 16 bits r/m16 left CL times       (IA V2 p424)
-            // /1 ROR r/m16,CL    Rotate 16 bits r/m16 right CL times      (IA V2 p424)
-            // /2 RCL r/m16,CL    Rotate 17 bits (CF,r/m16) left CL times  (IA V2 p424)
-            // /3 RCR r/m16,CL    Rotate 17 bits (CF,r/m16) right CL times (IA V2 p424)
-            // /4 SHL/SAL r/m16,CL Multiply r/m16 by 2, CL times           (IA V2 p446)
-            // /5 SHR r/m16,CL    Unsigned divide r/m16 by 2, CL times     (IA V2 p446)
-            // /6 (not used)                                               (8086 Table 4-13 page 4-34)
-            // /7 SAR r/m16,CL    Signed divide* r/m16 by 2, CL times      (IA V2 p446)
-         case 0: [this](word& dest) {dest = alu.ROL<word>(dest, d_regs.c.l); }(rm<word>()); break;
-         case 1: [this](word& dest) {dest = alu.ROR<word>(dest, d_regs.c.l); }(rm<word>()); break;
-         case 2: [this](word& dest) {dest = alu.RCL<word>(dest, d_regs.c.l); }(rm<word>()); break;
-         case 3: [this](word& dest) {dest = alu.RCR<word>(dest, d_regs.c.l); }(rm<word>()); break;
-         case 4: [this](word& dest) {dest = alu.SHL<word>(dest, d_regs.c.l); }(rm<word>()); break;
-         case 5: [this](word& dest) {dest = alu.SHR<word>(dest, d_regs.c.l); }(rm<word>()); break;
-         case 6: assert(false);
-         case 7: [this](word& dest) {dest = alu.SAR<word>(dest, d_regs.c.l); }(rm<word>()); break;
-         }
+         [&](word& dest) {
+            switch (ext) {
+            case 0: dest = alu.ROL<word>(dest, d_regs.c.l); break; // /0 ROL r/m16,CL    Rotate 16 bits r/m16 left CL times       (IA V2 p424)
+            case 1: dest = alu.ROR<word>(dest, d_regs.c.l); break; // /1 ROR r/m16,CL    Rotate 16 bits r/m16 right CL times      (IA V2 p424)
+            case 2: dest = alu.RCL<word>(dest, d_regs.c.l); break; // /2 RCL r/m16,CL    Rotate 17 bits (CF,r/m16) left CL times  (IA V2 p424)
+            case 3: dest = alu.RCR<word>(dest, d_regs.c.l); break; // /3 RCR r/m16,CL    Rotate 17 bits (CF,r/m16) right CL times (IA V2 p424)
+            case 4: dest = alu.SHL<word>(dest, d_regs.c.l); break; // /4 SHL/SAL r/m16,CL Multiply r/m16 by 2, CL times           (IA V2 p446)
+            case 5: dest = alu.SHR<word>(dest, d_regs.c.l); break; // /5 SHR r/m16,CL    Unsigned divide r/m16 by 2, CL times     (IA V2 p446)
+            case 6: assert(false);                                 // /6 (not used)                                               (8086 Table 4-13 page 4-34)
+            case 7: dest = alu.SAR<word>(dest, d_regs.c.l); break; // /7 SAR r/m16,CL    Signed divide* r/m16 by 2, CL times      (IA V2 p446)
+            }
+         }(rm<word>());
          break;
       }
 
@@ -1173,14 +1118,14 @@ void State8086::run(unsigned int runtime)
 
 
 
-      case 0xF8: alu.flags.C = 0; break;                     // CLC                clear CF flag (IA V2 p81)
+      case 0xF4: halted = true;                       break; // HLT                Halt (IA V2 p234)
       case 0xF5: alu.flags.C = (alu.flags.C ? 0 : 1); break; // CMC                Complement CF flag (IA V2 p86)
-      case 0xF9: alu.flags.C = 1; break;                     // STC                set CF flag (IA V2 p469)
-      case 0xFC: alu.flags.D = 0; break;                     // CLD                clear DF flag (IA V2 p82)
-      case 0xFD: alu.flags.D = 1; break;                     // STD                set DF flag (IA V2 p470)
-      case 0xFA: alu.flags.I = 0; break;                     // CLI                clear interrupt flag; interrupts disabled when interrupt flag cleared (IA V2 p83)
-      case 0xFB: alu.flags.I = 1; break;                     // STI                set interrupt flag; external, maskable interrupts enabled at the end of the next instruction (IA V2 p471)
-      case 0xF4: halted = true; break;                       // HLT                Halt (IA V2 p234)
+      case 0xF8: alu.flags.C = 0;                     break; // CLC                clear CF flag (IA V2 p81)
+      case 0xF9: alu.flags.C = 1;                     break; // STC                set CF flag (IA V2 p469)
+      case 0xFA: alu.flags.I = 0;                     break; // CLI                clear interrupt flag; interrupts disabled when interrupt flag cleared (IA V2 p83)
+      case 0xFB: alu.flags.I = 1;                     break; // STI                set interrupt flag; external, maskable interrupts enabled at the end of the next instruction (IA V2 p471)
+      case 0xFC: alu.flags.D = 0;                     break; // CLD                clear DF flag (IA V2 p82)
+      case 0xFD: alu.flags.D = 1;                     break; // STD                set DF flag (IA V2 p470)
 
       // WAIT = Wait:                       [10011011]
       case 0x9B: // WAIT               check pending unmasked floating-point exceptions (IA V2 p485)
@@ -1199,10 +1144,6 @@ void State8086::run(unsigned int runtime)
          fetchModRM();
          break; // escape to x87 FPU (unsupported)
       }
-      // LOCK = Bus lock prefix:            [11110000]
-      case 0xF0: // LOCK               asserts LOCK# signal for duration of the accompanying instruction (IA V2 p303)
-         break; // This is a prefix opcode. This one can probably be ignored since this is not a hardware emulator.
-
       // Input from Port to String
       case 0x6C: // INS m8,DX          Input byte from I/O port specified in DX into memory location specified in ES:(E)DI (IA V2 p245)
       {
@@ -1225,7 +1166,7 @@ void State8086::run(unsigned int runtime)
 
       // unused opcodes (8086 Family Table 4-13)
       // 0x0F Later CPUs use this as an escape character
-      // 0x60-6F,
+      // 0x60-6F, Later CPUs use 0x66 as operand size override and 0x67 as address override
       // 0xC0-C1,
       // 0xC8 C9,
       // 0xD6,
