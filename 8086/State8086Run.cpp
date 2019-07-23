@@ -1,46 +1,30 @@
 #include "State8086.h"
 
 #include <algorithm>
-
-
-enum RepeatType {
-   None, Equal, NEqual
-};
-
-bool continueFindLoop(RepeatType repeatType, byte ZF, word &counter) {
-   if (repeatType == None)
-      return false; // Not in a loop
-
-   // Repeat prefix exists. Decrement counter
-   counter--;
-
-   // Break repeat loop if condition is met
-   if ((repeatType == Equal) && (ZF == 0))
-      return false;
-   if ((repeatType == NEqual) && (ZF == 1))
-      return false;
-
-   // Condition not met. Continue loop
-   return true;
-}
-
-bool continueLoop(RepeatType repeatType, word &counter) {
-   if (repeatType == None)
-      return false; // Not in a loop
-
-   // Repeat prefix exists; decrement counter
-   counter--;
-   return true;
-}
+#include <functional>
 
 
 void State8086::run(unsigned int runtime)
 {
    byte opcode;
-   RepeatType repeatType;
-   word saveIP;
    bool trap_toggle = false;
+   enum RepeatType { None, Equal, NEqual } repeatType;
 
+   auto REP = [&](std::function<void()> instruction) {
+      if (repeatType == None) {
+         instruction();
+         return;
+      }
+      while (d_regs.c.x != 0) {
+         // handle interrupts, if any
+         instruction();
+         d_regs.c.x--;
+         if ((repeatType == Equal) && (alu.flags.Z == 0))
+            break;
+         if (alu.flags.Z == 1)
+            break;
+      };
+   };
 
    for (unsigned int count = 0; count < runtime;) {
       if (halted) // Halt state
@@ -59,7 +43,6 @@ void State8086::run(unsigned int runtime)
 
       disassembleOp();
 
-      saveIP = IP; // Used if repeat prefix is present (to go back and execute instruction again)
       repeatType = None;
       // The default segment register is SS for the effective addresses
       // containing a BP index, DS for other effective addresses (IA V2 p29).
@@ -816,156 +799,98 @@ void State8086::run(unsigned int runtime)
       // [1010010 w]
       case 0xA4: // MOVS m8,m8         move byte at address DS:(E)SI to address ES:(E)DI (IA V2 p329)
       {
-         mem<byte>(segRegs.ES, pi_regs.DI) = mem<byte>(segRegs.DS, pi_regs.SI);
-
-         if (alu.flags.D == 0) {
-            pi_regs.SI += 1;
-            pi_regs.DI += 1;
-         } else {
-            pi_regs.SI -= 1;
-            pi_regs.DI -= 1;
-         }
-
-         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
-            IP = saveIP;
-
+         REP([&] {
+            mem<byte>(segRegs.ES, pi_regs.DI) = mem<byte>(segRegs.DS, pi_regs.SI);
+            pi_regs.SI += (alu.flags.D == 0) ? 1 : -1;
+            pi_regs.DI += (alu.flags.D == 0) ? 1 : -1;
+         });
          break;
       }
       case 0xA5: // MOVS m16,m16       move word at address DS:(E)SI to address ES:(E)DI (IA V2 p329)
       {
-         mem<word>(segRegs.ES, pi_regs.DI) = mem<word>(segRegs.DS, pi_regs.SI);
-
-         if (alu.flags.D == 0) {
-            pi_regs.SI += 2;
-            pi_regs.DI += 2;
-         } else {
-            pi_regs.SI -= 2;
-            pi_regs.DI -= 2;
-         }
-
-         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
-            IP = saveIP;
-
+         REP([&] {
+            mem<word>(segRegs.ES, pi_regs.DI) = mem<word>(segRegs.DS, pi_regs.SI);
+            pi_regs.SI += (alu.flags.D == 0) ? 2 : -2;
+            pi_regs.DI += (alu.flags.D == 0) ? 2 : -2;
+         });
          break;
       }
       // CMPS = Compare byte/word
       // [1010011 w]
       case 0xA6: // CMPS m8,m8         compares byte at address DS:(E)SI with byte at address ES:(E)DI and sets the status flags accordingly (IA V2 p93)
       {
-         // Do normal operation
-         alu.sub<byte>(
-            mem<byte>(segRegs.DS, pi_regs.SI),
-            mem<byte>(segRegs.ES, pi_regs.DI));
-
-         if (alu.flags.D == 0) {
-            pi_regs.SI += 1;
-            pi_regs.DI += 1;
-         } else {
-            pi_regs.SI -= 1;
-            pi_regs.DI -= 1;
-         }
-
-         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
-            IP = saveIP;
-
+         REP([&] {
+            alu.sub<byte>(
+               mem<byte>(segRegs.DS, pi_regs.SI),
+               mem<byte>(segRegs.ES, pi_regs.DI));
+            pi_regs.SI += (alu.flags.D == 0) ? 1 : -1;
+            pi_regs.DI += (alu.flags.D == 0) ? 1 : -1;
+         });
          break;
       }
       case 0xA7: // CMPS m16,m16       compares word at address DS:(E)SI with word at address ES:(E)DI and sets the status flags accordingly (IA V2 p93)
       {
-         // Do normal operation
-         alu.sub<word>(
-            mem<word>(segRegs.DS, pi_regs.SI),
-            mem<word>(segRegs.ES, pi_regs.DI));
-
-         if (alu.flags.D == 0) {
-            pi_regs.SI += 2;
-            pi_regs.DI += 2;
-         } else {
-            pi_regs.SI -= 2;
-            pi_regs.DI -= 2;
-         }
-
-         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
-            IP = saveIP;
-
+         REP([&] {
+            alu.sub<word>(
+               mem<word>(segRegs.DS, pi_regs.SI),
+               mem<word>(segRegs.ES, pi_regs.DI));
+            pi_regs.SI += (alu.flags.D == 0) ? 2 : -2;
+            pi_regs.DI += (alu.flags.D == 0) ? 2 : -2;
+         });
          break;
       }
       // SCAS = Scan byte/word
       // [1010111 w]
       case 0xAE: // SCAS m8            compare AL with byte at ES:(E)DI and set status flags (IA V2 p452)
       {
-         alu.sub<byte>(d_regs.a.l, mem<byte>(segRegs.ES, pi_regs.DI));
-
-         if (alu.flags.D == 0) pi_regs.DI += 1;
-         else                  pi_regs.DI -= 1;
-
-         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
-            IP = saveIP;
-
+         REP([&] {
+            alu.sub<byte>(d_regs.a.l, mem<byte>(segRegs.ES, pi_regs.DI));
+            pi_regs.DI += (alu.flags.D == 0) ? 1 : -1;
+         });
          break;
       }
       case 0xAF: // SCAS m16           compare AX with word at ES:(E)DI and set status flags (IA V2 p452)
       {
-         alu.sub<word>(d_regs.a.x, mem<word>(segRegs.ES, pi_regs.DI));
-
-         if (alu.flags.D == 0) pi_regs.DI += 2;
-         else                  pi_regs.DI -= 2;
-
-         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
-            IP = saveIP;
-
+         REP([&] {
+            alu.sub<word>(d_regs.a.x, mem<word>(segRegs.ES, pi_regs.DI));
+            pi_regs.DI += (alu.flags.D == 0) ? 2 : -2;
+         });
          break;
       }
       // LODS = Load byte/wd to AL/AX
       // [1010110 w]
       case 0xAC: // LODS m8            load byte at address DS:(E)SI into AL (IA V2 p305)
       {
-         d_regs.a.l = mem<byte>(segRegs.DS, pi_regs.SI);
-
-         if (alu.flags.D == 0) pi_regs.SI += 1;
-         else                  pi_regs.SI -= 1;
-
-         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
-            IP = saveIP;
-
+         REP([&] {
+            d_regs.a.l = mem<byte>(segRegs.DS, pi_regs.SI);
+            pi_regs.SI += (alu.flags.D == 0) ? 1 : -1;
+         });
          break;
       }
       case 0xAD: // LODS m16           load word at address DS:(E)SI into AX (IA V2 p305)
       {
-         d_regs.a.x = mem<word>(segRegs.DS, pi_regs.SI);
-
-         if (alu.flags.D == 0) pi_regs.SI += 2;
-         else                  pi_regs.SI -= 2;
-
-         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
-            IP = saveIP;
-
+         REP([&] {
+            d_regs.a.x = mem<word>(segRegs.DS, pi_regs.SI);
+            pi_regs.SI += (alu.flags.D == 0) ? 2 : -2;
+         });
          break;
       }
       // STDS = Stor byte/wd from AL/A
       // [1010101 w]
       case 0xAA: // STOS m8            store AL at address ES:(E)DI (IA V2 p473)
       {
-         mem<byte>(segRegs.ES, pi_regs.DI) = d_regs.a.l;
-
-         if (alu.flags.D == 0) pi_regs.DI += 1;
-         else                  pi_regs.DI -= 1;
-
-         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
-            IP = saveIP;
-
+         REP([&] {
+            mem<byte>(segRegs.DS, pi_regs.SI) = d_regs.a.l;
+            pi_regs.SI += (alu.flags.D == 0) ? 1 : -1;
+         });
          break;
       }
       case 0xAB: // STOS m16           store AX at address ES:(E)DI (IA V2 p473)
       {
-         mem<word>(segRegs.ES, pi_regs.DI) = d_regs.a.x;
-
-         if (alu.flags.D == 0) pi_regs.DI += 2;
-         else                  pi_regs.DI -= 2;
-
-         if (continueFindLoop(repeatType, alu.flags.Z, d_regs.c.x))
-            IP = saveIP;
-
+         REP([&] {
+            mem<word>(segRegs.DS, pi_regs.SI) = d_regs.a.x;
+            pi_regs.SI += (alu.flags.D == 0) ? 2 : -2;
+         });
          break;
       }
 
@@ -1147,20 +1072,20 @@ void State8086::run(unsigned int runtime)
       // Input from Port to String
       case 0x6C: // INS m8,DX          Input byte from I/O port specified in DX into memory location specified in ES:(E)DI (IA V2 p245)
       {
-         mem<byte>(segRegs.ES, pi_regs.DI) = io->read<byte>(d_regs.d.x);
-         if (alu.flags.D == 0) pi_regs.DI += 1;
-         else                  pi_regs.DI -= 1;
-         if (continueLoop(repeatType, d_regs.c.x))
-            IP = saveIP;
+         REP([&] {
+            mem<byte>(segRegs.ES, pi_regs.DI) = io->read<byte>(d_regs.d.x);
+            if (alu.flags.D == 0) pi_regs.DI += 1;
+            else                  pi_regs.DI -= 1;
+         });
          break;
       }
       case 0x6D: // INS m16,DX         Input word from I/O port specified in DX into memory location specified in ES:(E)DI (IA V2 p245)
       {
-         mem<word>(segRegs.ES, pi_regs.DI) = io->read<word>(d_regs.d.x);
-         if (alu.flags.D == 0) pi_regs.DI += 2;
-         else                  pi_regs.DI -= 2;
-         if (continueLoop(repeatType, d_regs.c.x))
-            IP = saveIP;
+         REP([&] {
+            mem<word>(segRegs.ES, pi_regs.DI) = io->read<word>(d_regs.d.x);
+            if (alu.flags.D == 0) pi_regs.DI += 2;
+            else                  pi_regs.DI -= 2;
+         });
          break;
       }
 
