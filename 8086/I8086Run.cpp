@@ -1,10 +1,10 @@
-#include "State8086.h"
+#include "I8086.h"
 
 #include <algorithm>
 #include <functional>
 
 
-void State8086::run(unsigned int runtime)
+void I8086::run(unsigned int runtime)
 {
    byte opcode;
    bool trap_toggle = false;
