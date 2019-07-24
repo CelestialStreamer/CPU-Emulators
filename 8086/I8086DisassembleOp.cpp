@@ -1,4 +1,4 @@
-#include "State8086.h"
+#include "I8086.h"
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -21,7 +21,7 @@ std::string intToHexUnsigned(int x) {
    return stream.str();
 }
 
-void State8086::disassembleOp() {
+void I8086::disassembleOp() {
    enum OperationSize {
       BYTE, WORD
    };

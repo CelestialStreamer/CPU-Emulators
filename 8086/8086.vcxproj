@@ -117,19 +117,21 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="alu.cpp" />
+    <ClCompile Include="I8087.cpp" />
     <ClCompile Include="IO.cpp" />
     <ClCompile Include="Memory.cpp" />
     <ClCompile Include="Source.cpp" />
-    <ClCompile Include="State8086.cpp" />
-    <ClCompile Include="State8086DisassembleOp.cpp" />
-    <ClCompile Include="State8086Run.cpp" />
+    <ClCompile Include="I8086.cpp" />
+    <ClCompile Include="I8086DisassembleOp.cpp" />
+    <ClCompile Include="I8086Run.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="alu.h" />
     <ClInclude Include="Common.h" />
+    <ClInclude Include="I8087.h" />
     <ClInclude Include="IO.h" />
     <ClInclude Include="Memory.h" />
-    <ClInclude Include="State8086.h" />
+    <ClInclude Include="I8086.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

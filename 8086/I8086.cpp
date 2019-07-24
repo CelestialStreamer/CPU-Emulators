@@ -1,13 +1,13 @@
-#include "State8086.h"
+#include "I8086.h"
 
 #include <cassert>
 
 
 
-void State8086::push(word value) { mem<word>(segRegs.SS, (pi_regs.SP -= 2)) = value; }
-word State8086::pop() { return mem<word>(segRegs.SS, (pi_regs.SP += 2) - 2); }
+void I8086::push(word value) { mem<word>(segRegs.SS, (pi_regs.SP -= 2)) = value; }
+word I8086::pop() { return mem<word>(segRegs.SS, (pi_regs.SP += 2) - 2); }
 
-void State8086::reset() {
+void I8086::reset() {
    /// [I]nitializes the system as shown in Table 2-4. (8086 Family p2-29:System Reset)
    alu.flags.clear();
    IP = 0;
@@ -20,13 +20,13 @@ void State8086::reset() {
    halted = false;
 }
 
-State8086::State8086(Memory* memory, IO* io) : memory(memory), io(io) { reset(); }
-State8086::~State8086() { delete memory; delete io; }
-void State8086::externalInterrupt(unsigned int vector) {
+I8086::I8086(Memory* memory, IO* io) : memory(memory), io(io) { reset(); }
+I8086::~I8086() { delete memory; delete io; }
+void I8086::externalInterrupt(unsigned int vector) {
    if (alu.flags.I)
       interrupt(vector);
 }
-void State8086::interrupt(unsigned int vector) {
+void I8086::interrupt(unsigned int vector) {
    push(alu.flags.get<word>());
    auto temp = alu.flags.T;
    alu.flags.I = alu.flags.T = 0;
@@ -45,7 +45,7 @@ void State8086::interrupt(unsigned int vector) {
 
 // r8 register mode
 template<>
-byte& State8086::reg() {
+byte& I8086::reg() {
    switch (_reg) {
    case 0: return d_regs.a.l;
    case 1: return d_regs.c.l;
@@ -59,7 +59,7 @@ byte& State8086::reg() {
 }
 // r16 register mode
 template<>
-word& State8086::reg() {
+word& I8086::reg() {
    switch (_reg) {
    case 0: return d_regs.a.x;
    case 1: return d_regs.c.x;
@@ -72,7 +72,7 @@ word& State8086::reg() {
    }
 }
 
-void State8086::fetchModRM() {
+void I8086::fetchModRM() {
    // (IA V2 2-1 Table 2-1 Intel Architecture Instruction Format)
    // (8086 Family 4-19 Figure 4-20 Typical 8086/8088 Machine Instruction Format)
    byte addrbyte = imm<byte>();
@@ -116,7 +116,7 @@ void State8086::fetchModRM() {
    /// (IA V2 2-4 Table 2-1)
 }
 
-int State8086::ea() {
+int I8086::ea() {
    int tempea = 0;
    switch (_mode) {
    case 0: // no displacement, but case six is special

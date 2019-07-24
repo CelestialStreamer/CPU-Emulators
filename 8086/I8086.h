@@ -12,7 +12,7 @@
 // 0xffff0 - 0xfffff (16 bytes)
 // Reserved IO space:
 //  0x00f8 -  0x00ff (8 bytes)
-class State8086 {
+class I8086 {
 private:
 
    /// REGISTERS ///
@@ -79,8 +79,8 @@ private:
    bool halted;
 
 public:
-   State8086(Memory*, IO*);
-   ~State8086();
+   I8086(Memory*, IO*);
+   ~I8086();
 
    // Reset/clear alu/segment flags, IP, and leave halt state if in halt state
    void reset();
@@ -156,14 +156,14 @@ private:
 
 
 template<typename T>
-T State8086::imm() {
+T I8086::imm() {
    T value = mem<T>(segRegs.CS, IP);
    IP += sizeof(T);
    return value;
 }
 
 template<typename T>
-T& State8086::rm() {
+T& I8086::rm() {
    if (_mode == 3) return reg<T>();
    else            return memory->mem<T>(ea());
 }
